@@ -1,0 +1,159 @@
+name: Deploy app
+
+# Deploys the server, the web app and the Android screen bundle to Cloud Run after CI
+# passes on main. One image carries all three, so the server and the screens installed apps
+# download are always the same commit.
+#
+# Safety: an existing service first receives the new revision with no traffic. It goes live
+# only after its own tagged URL answers with the expected version; otherwise production
+# stays on the previous revision.
+#
+# One-time setup: docs/AUTO-DEPLOY-SETUP.md. Repository variables:
+#   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_PROJECT_ID, GCP_REGION,
+#   CLOUD_RUN_SERVICE, VITE_API_BASE_URL
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-app
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    # Skipped silently until the repository variables exist (docs/AUTO-DEPLOY-SETUP.md).
+    if: >-
+      vars.GCP_PROJECT_ID != '' && vars.CLOUD_RUN_SERVICE != '' && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROJECT: ${{ vars.GCP_PROJECT_ID }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+    steps:
+      - name: Check repository variables
+        run: |
+          for name in REGION PROJECT SERVICE; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repository variable for $name is not set. See docs/AUTO-DEPLOY-SETUP.md."; exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set version
+        run: echo "LIVE_BUNDLE_VERSION=${SHA:0:12}" >> "$GITHUB_ENV"
+
+      # CI already ran on this commit; repeat the fast checks so a manual run cannot ship an unchecked commit.
+      - name: Type check and unit tests
+        run: npm run lint && npm test
+
+      - name: Build web app and server
+        run: npm run build
+
+      # The service URL is only known after the first deploy. Until VITE_API_BASE_URL is set the
+      # image ships without a screen bundle (the app and server still work; the Dockerfile needs the folder).
+      - name: Build Android screen bundle
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if [ -n "$VITE_API_BASE_URL" ]; then
+            node scripts/build-live-bundle.mjs
+          else
+            echo "::warning::VITE_API_BASE_URL is not set; deploying without an Android screen bundle."
+            mkdir -p live-update
+          fi
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT/mytodo/server:$LIVE_BUNDLE_VERSION"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build --build-arg APP_VERSION="$LIVE_BUNDLE_VERSION" -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Does the service exist?
+        run: |
+          if gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" >/dev/null 2>&1; then
+            echo "SERVICE_EXISTS=1" >> "$GITHUB_ENV"
+          else
+            echo "SERVICE_EXISTS=0" >> "$GITHUB_ENV"
+          fi
+
+      # The very first deploy creates the service. It has no traffic to protect yet,
+      # so it goes live directly (a service must have a revision serving traffic).
+      - name: First deploy (creates the service)
+        if: env.SERVICE_EXISTS != '1'
+        run: |
+          gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" \
+            --image "$IMAGE" --allow-unauthenticated \
+            --min-instances 0 --max-instances 2 --memory 256Mi --quiet
+
+      - name: Deploy without traffic
+        if: env.SERVICE_EXISTS == '1'
+        run: |
+          gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" \
+            --image "$IMAGE" --no-traffic --tag candidate --quiet
+
+      - name: Check the new revision
+        if: env.SERVICE_EXISTS == '1'
+        run: |
+          BASE_URL=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format='value(status.url)')
+          CANDIDATE_URL="${BASE_URL/https:\/\//https://candidate---}"
+          for attempt in 1 2 3 4 5 6; do
+            BODY=$(curl -fsS "$CANDIDATE_URL/api/health" || true)
+            if echo "$BODY" | grep -q "\"version\":\"$LIVE_BUNDLE_VERSION\""; then
+              curl -fsS -o /dev/null "$CANDIDATE_URL/" && exit 0
+            fi
+            echo "Attempt $attempt: candidate not ready"; sleep 10
+          done
+          echo "::error::New revision did not answer with version $LIVE_BUNDLE_VERSION. Production traffic was not moved."
+          exit 1
+
+      - name: Move traffic to the new revision
+        if: env.SERVICE_EXISTS == '1'
+        run: |
+          gcloud run services update-traffic "$SERVICE" --project "$PROJECT" --region "$REGION" --to-latest --quiet
+
+      - name: Summary
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format='value(status.url)')
+          {
+            echo "### Deployed $LIVE_BUNDLE_VERSION"
+            echo "- Service URL: $URL (use this as the VITE_API_BASE_URL repository variable and when building the APK)"
+            echo "- Image: \`$IMAGE\`"
+            if [ -f live-update/manifest.json ]; then
+              echo "- Installed apps (APK build $(jq .minNativeBuild live-update/manifest.json)+) pick up the new screens after the download, on the next cold start or after a long break."
+            else
+              echo "- No Android screen bundle in this deploy: set the VITE_API_BASE_URL repository variable to the service URL above, then run this workflow again."
+            fi
+            echo "- Roll back: Cloud Run console > service > Revisions > send 100% to the previous revision."
+          } >> "$GITHUB_STEP_SUMMARY"
