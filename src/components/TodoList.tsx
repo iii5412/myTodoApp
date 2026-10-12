@@ -10,13 +10,14 @@ interface Props {
   onMove: (fromId: string, toId: string) => void;
   onComplete: (id: string) => void;
   onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 /**
  * Touch: press and hold a card for a moment, then drag. A quick swipe still
  * scrolls the list. Mouse: drag after a few pixels.
  */
-export function TodoList({ todos, completingId, onMove, onComplete, onEdit }: Props) {
+export function TodoList({ todos, completingId, onMove, onComplete, onEdit, onDelete }: Props) {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
@@ -40,7 +41,14 @@ export function TodoList({ todos, completingId, onMove, onComplete, onEdit }: Pr
       <SortableContext items={todos.map(todo => todo.id)} strategy={verticalListSortingStrategy}>
         <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
           {todos.map(todo => (
-            <TodoCard key={todo.id} todo={todo} completing={completingId === todo.id} onComplete={onComplete} onEdit={onEdit} />
+            <TodoCard
+              key={todo.id}
+              todo={todo}
+              completing={completingId === todo.id}
+              onComplete={onComplete}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
           ))}
         </ul>
       </SortableContext>

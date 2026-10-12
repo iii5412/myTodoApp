@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, emptyData,
-  groupByDay, moveTodo, parseAppData, restoreTodo,
+  groupByDay, insertTodo, moveTodo, parseAppData, restoreTodo,
 } from './todos';
 
 function withTodos(...texts: string[]) {
@@ -58,6 +58,16 @@ describe('todos', () => {
     expect(deleteTodo(data, data.todos[0].id).todos).toHaveLength(0);
     expect(deleteHistoryItem(data, data.history[0].id).history).toHaveLength(0);
     expect(clearHistory(data).history).toHaveLength(0);
+  });
+
+  it('undoes a delete by inserting the task back at its old position', () => {
+    const data = withTodos('a', 'b', 'c');
+    const removed = data.todos[1];
+    const deleted = deleteTodo(data, removed.id);
+    expect(insertTodo(deleted, removed, 1).todos.map(t => t.text)).toEqual(['a', 'b', 'c']);
+    expect(insertTodo(deleted, removed, 99).todos.map(t => t.text)).toEqual(['a', 'c', 'b']);
+    const restored = insertTodo(deleted, removed, 1);
+    expect(insertTodo(restored, removed, 0)).toBe(restored);
   });
 
   it('parses backups defensively', () => {

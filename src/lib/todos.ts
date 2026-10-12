@@ -70,6 +70,14 @@ export function deleteTodo(data: AppData, id: string): AppData {
   return { ...data, todos: data.todos.filter(todo => todo.id !== id) };
 }
 
+/** Puts a deleted task back at `index` (undo of deleteTodo). Ignores a task that is already on the list. */
+export function insertTodo(data: AppData, todo: Todo, index: number): AppData {
+  if (data.todos.some(item => item.id === todo.id)) return data;
+  const todos = [...data.todos];
+  todos.splice(Math.max(0, Math.min(index, todos.length)), 0, todo);
+  return { ...data, todos };
+}
+
 export function deleteHistoryItem(data: AppData, id: string): AppData {
   return { ...data, history: data.history.filter(todo => todo.id !== id) };
 }

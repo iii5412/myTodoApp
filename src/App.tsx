@@ -11,14 +11,14 @@ import { formatHeaderDate, startOfToday } from './lib/format';
 import { isNativeAndroid } from './lib/platform';
 import { loadData, saveData } from './lib/storage';
 import {
-  addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, moveTodo, restoreTodo,
+  addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, moveTodo, restoreTodo,
   type AppData, type TodoColor,
 } from './lib/todos';
 
 type View = 'home' | 'settings' | 'history';
 interface ToastState {
   message: string;
-  undo?: { id: string; index: number };
+  undo?: () => void;
 }
 
 const COMPLETE_ANIMATION_MS = 260;
@@ -98,16 +98,25 @@ export default function App() {
       window.setTimeout(() => {
         setData(current => completeTodo(current, id));
         setCompletingId(null);
-        setToast({ message: '완료했어요', undo: { id, index } });
+        setToast({ message: '완료했어요', undo: () => setData(current => restoreTodo(current, id, index)) });
       }, COMPLETE_ANIMATION_MS);
     },
     [completingId, data.todos],
   );
 
-  const undoComplete = useCallback(() => {
-    const undo = toast?.undo;
-    if (!undo) return;
-    setData(current => restoreTodo(current, undo.id, undo.index));
+  const remove = useCallback(
+    (id: string) => {
+      const index = data.todos.findIndex(todo => todo.id === id);
+      const removed = data.todos[index];
+      if (!removed) return;
+      setData(current => deleteTodo(current, id));
+      setToast({ message: '삭제했어요', undo: () => setData(current => insertTodo(current, removed, index)) });
+    },
+    [data.todos],
+  );
+
+  const runUndo = useCallback(() => {
+    toast?.undo?.();
     setToast(null);
   }, [toast]);
 
@@ -140,16 +149,15 @@ export default function App() {
   return (
     <div ref={rootRef} className="relative mx-auto flex h-full max-w-xl flex-col">
       <header className="shrink-0 px-5 pb-3" style={{ paddingTop: 'calc(var(--safe-top) + 20px)' }}>
-        <div className="flex items-start justify-between">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="m-0 text-[14px] font-semibold text-muted">{formatHeaderDate(today)}</p>
-            <h1 className="m-0 mt-0.5 text-[30px] leading-tight font-extrabold tracking-tight">오늘 할 일</h1>
+            <h1 className="m-0 text-[28px] leading-tight font-extrabold tracking-tight">{formatHeaderDate(today)}</h1>
           </div>
           <button
             type="button"
             onClick={() => setView('settings')}
             aria-label="설정"
-            className="-mt-1 -mr-2 grid size-12 place-items-center rounded-full text-muted active:bg-sunken"
+            className="-mr-2 grid size-12 place-items-center rounded-full text-muted active:bg-sunken"
           >
             <Settings size={26} />
           </button>
@@ -175,7 +183,7 @@ export default function App() {
         {remaining === 0 ? (
           <div className="mt-20 flex flex-col items-center gap-3 text-center text-muted">
             <CheckCheck size={52} strokeWidth={1.5} className={doneToday > 0 ? 'text-tag-green' : ''} />
-            <p className="m-0 text-[19px] font-bold text-ink">{doneToday > 0 ? '오늘 할 일을 모두 끝냈어요' : '할 일이 없어요'}</p>
+            <p className="m-0 text-[19px] font-bold text-ink">{doneToday > 0 ? '할 일을 모두 끝냈어요' : '할 일이 없어요'}</p>
             <p className="m-0 text-[15px]">아래에서 새 할 일을 추가해 보세요</p>
           </div>
         ) : (
@@ -185,6 +193,7 @@ export default function App() {
             onMove={(from, to) => setData(current => moveTodo(current, from, to))}
             onComplete={complete}
             onEdit={setEditingId}
+            onDelete={remove}
           />
         )}
       </main>
@@ -193,7 +202,7 @@ export default function App() {
         <Toast
           message={toast.message}
           actionLabel={toast.undo ? '되돌리기' : undefined}
-          onAction={undoComplete}
+          onAction={runUndo}
           onDone={() => setToast(null)}
         />
       )}
@@ -207,7 +216,7 @@ export default function App() {
           key={editing.id}
           todo={editing}
           onSave={(id, patch) => setData(current => editTodo(current, id, patch))}
-          onDelete={id => setData(current => deleteTodo(current, id))}
+          onDelete={remove}
           onClose={() => setEditingId(null)}
         />
       )}
