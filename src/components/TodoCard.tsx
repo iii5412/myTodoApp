@@ -1,10 +1,11 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Check, GripVertical, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, GripVertical, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { classifyGesture, deleteDistance, shouldDelete, type Gesture } from '../lib/swipe';
 import type { Todo } from '../lib/todos';
 import { COLOR_VAR } from './colors';
+import { formatSchedule } from '../lib/format';
 
 interface Props {
   todo: Todo;
@@ -23,7 +24,7 @@ const SNAP_MS = 180;
  * sorting); the edit sheet keeps a delete button for that.
  */
 export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: todo.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: todo.id, disabled: todo.dueAt !== undefined });
   const stripe = todo.color ? COLOR_VAR[todo.color] : 'transparent';
 
   const content = useRef<HTMLDivElement>(null);
@@ -102,6 +103,7 @@ export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Pro
       }}
       className={`relative overflow-hidden rounded-2xl ${isDragging ? 'card-lift' : 'shadow-[0_1px_2px_rgb(0_0_0/0.06)]'}`}
       {...attributes}
+      aria-disabled={undefined}
       {...listeners}
     >
       <div
@@ -127,7 +129,7 @@ export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Pro
           type="button"
           aria-label={`${todo.text} 완료`}
           onClick={() => onComplete(todo.id)}
-          className={`grid size-9 shrink-0 place-items-center rounded-full border-2 transition-colors ${
+          className={`grid size-11 shrink-0 place-items-center rounded-full border-2 transition-colors ${
             completing ? 'pop border-accent bg-accent text-accent-ink' : 'border-muted/60 text-transparent active:border-accent'
           }`}
         >
@@ -137,13 +139,16 @@ export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Pro
         <button
           type="button"
           onClick={() => onEdit(todo.id)}
-          className={`min-w-0 flex-1 py-2 text-left text-[19px] leading-snug font-semibold break-words ${completing ? 'text-muted line-through' : ''}`}
+          className={`min-h-11 min-w-0 flex-1 py-2 text-left text-[19px] leading-snug font-semibold break-words ${completing ? 'text-muted line-through' : ''}`}
         >
-          {todo.text}
+          <span className="block">{todo.text}</span>
+          {todo.dueAt !== undefined && (
+            <span className="mt-1 block text-[13px] font-medium text-muted">{formatSchedule(todo.dueAt)}</span>
+          )}
         </button>
 
         <span className="grid size-11 shrink-0 place-items-center text-muted/70" aria-hidden>
-          <GripVertical size={22} />
+          {todo.dueAt !== undefined ? <CalendarDays size={20} /> : <GripVertical size={22} />}
         </span>
       </div>
     </li>

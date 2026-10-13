@@ -5,9 +5,6 @@
     <string name="package_name">com.iii5412.mytodo</string>
     <string name="custom_url_scheme">com.iii5412.mytodo</string>
     <string name="channel_service">잠금 해제 감지</string>
-    <string name="channel_open">할 일 열기</string>
     <string name="service_notification_title">할 일</string>
     <string name="service_notification_text">잠금을 풀면 할 일을 바로 보여줘요</string>
-    <string name="open_notification_title">할 일 확인하기</string>
-    <string name="open_notification_text">눌러서 오늘 할 일을 확인하세요</string>
 </resources>

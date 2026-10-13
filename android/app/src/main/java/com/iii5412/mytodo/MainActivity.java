@@ -11,11 +11,6 @@ public class MainActivity extends BridgeActivity {
     private static volatile boolean foreground;
     private boolean pendingUnlockEvent;
 
-    /** True while the list is on screen; the unlock service uses it to detect a refused launch. */
-    static boolean isForeground() {
-        return foreground;
-    }
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(UnlockLaunchPlugin.class);
@@ -50,7 +45,7 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         foreground = true;
-        UnlockLaunchService.cancelOpenNotification(this);
+        UnlockLaunchService.clearLegacyReminder(this);
         // Fired after the WebView is running again so the page can return to the list.
         fireUnlockEvent();
     }

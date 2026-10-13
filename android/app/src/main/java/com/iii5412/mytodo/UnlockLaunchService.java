@@ -12,9 +12,7 @@ import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
@@ -31,25 +29,19 @@ import androidx.core.content.ContextCompat;
  * Watches for the phone being unlocked and brings the to-do list to the front.
  *
  * Android only lets a background app open its own screen when it holds "display over other
- * apps". With that permission the list opens straight away. Without it, or if the system still
- * refuses, a tap-to-open notification is posted instead.
+ * apps". With that permission the list opens straight away. No tap-to-open reminder is posted.
  *
  * ACTION_USER_PRESENT cannot be received by a manifest receiver, so this foreground service
  * registers one while it runs. The boot receiver restarts the service after a reboot.
  */
 public class UnlockLaunchService extends Service {
     private static final String CHANNEL_SERVICE = "unlock_service";
-    private static final String CHANNEL_OPEN = "unlock_open";
     private static final int ID_SERVICE = 1001;
-    private static final int ID_OPEN = 1002;
     private static final long DEBOUNCE_MS = 2000;
-    private static final long FALLBACK_CHECK_MS = 1500;
-    private static final long FALLBACK_TIMEOUT_MS = 60_000;
 
     private static final String TAG = "UnlockLaunch";
     static final String EXTRA_FROM_UNLOCK = "from_unlock";
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
     private BroadcastReceiver receiver;
     private View overlay;
     private long lastLaunchAt = -DEBOUNCE_MS;
@@ -60,11 +52,15 @@ public class UnlockLaunchService extends Service {
 
     static void stop(Context context) {
         context.stopService(new Intent(context, UnlockLaunchService.class));
-        NotificationManagerCompat.from(context).cancel(ID_OPEN);
+        clearLegacyReminder(context);
     }
 
-    static void cancelOpenNotification(Context context) {
-        NotificationManagerCompat.from(context).cancel(ID_OPEN);
+    /** Remove reminders left by the previous APK, including when the watcher is disabled. */
+    static void clearLegacyReminder(Context context) {
+        NotificationManagerCompat.from(context).cancel(1002);
+        if (Build.VERSION.SDK_INT >= 26) {
+            context.getSystemService(NotificationManager.class).deleteNotificationChannel("unlock_open");
+        }
     }
 
     @Override
@@ -102,7 +98,6 @@ public class UnlockLaunchService extends Service {
 
     @Override
     public void onDestroy() {
-        handler.removeCallbacksAndMessages(null);
         if (receiver != null) {
             try {
                 unregisterReceiver(receiver);
@@ -130,16 +125,11 @@ public class UnlockLaunchService extends Service {
             ensureOverlay();
             try {
                 startActivity(buildOpenIntent());
-                // If the system silently refused, the app never reaches the foreground: tell the user instead.
-                handler.postDelayed(() -> {
-                    if (!MainActivity.isForeground()) postOpenNotification();
-                }, FALLBACK_CHECK_MS);
                 return;
             } catch (RuntimeException error) {
                 Log.w(TAG, "startActivity failed", error);
             }
         }
-        postOpenNotification();
     }
 
     private Intent buildOpenIntent() {
@@ -153,13 +143,12 @@ public class UnlockLaunchService extends Service {
     }
 
     private void createChannels() {
+        if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager manager = getSystemService(NotificationManager.class);
-        NotificationChannel service = new NotificationChannel(CHANNEL_SERVICE, getString(R.string.channel_service), NotificationManager.IMPORTANCE_MIN);
+        clearLegacyReminder(this);
+        NotificationChannel service = new NotificationChannel(CHANNEL_SERVICE, getString(R.string.channel_service), NotificationManager.IMPORTANCE_LOW);
         service.setShowBadge(false);
         manager.createNotificationChannel(service);
-        NotificationChannel open = new NotificationChannel(CHANNEL_OPEN, getString(R.string.channel_open), NotificationManager.IMPORTANCE_HIGH);
-        open.setShowBadge(false);
-        manager.createNotificationChannel(open);
     }
 
     private Notification buildServiceNotification() {
@@ -170,30 +159,9 @@ public class UnlockLaunchService extends Service {
             .setContentIntent(buildOpenPendingIntent())
             .setOngoing(true)
             .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build();
-    }
-
-    private void postOpenNotification() {
-        Log.i(TAG, "posting open notification");
-        NotificationManagerCompat manager = NotificationManagerCompat.from(this);
-        if (!manager.areNotificationsEnabled()) return;
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_OPEN)
-            .setSmallIcon(R.drawable.ic_stat_todo)
-            .setContentTitle(getString(R.string.open_notification_title))
-            .setContentText(getString(R.string.open_notification_text))
-            .setContentIntent(buildOpenPendingIntent())
-            .setAutoCancel(true)
-            .setTimeoutAfter(FALLBACK_TIMEOUT_MS)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .build();
-        try {
-            manager.notify(ID_OPEN, notification);
-        } catch (SecurityException ignored) {
-            // Notification permission was revoked in the meantime.
-        }
     }
 
     /**

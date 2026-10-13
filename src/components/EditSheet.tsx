@@ -2,10 +2,12 @@ import { Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Todo, TodoColor } from '../lib/todos';
 import { ColorPicker } from './ColorPicker';
+import { ScheduleField } from './ScheduleField';
+import { fromDateTimeInput, toDateTimeInput } from '../lib/format';
 
 interface Props {
   todo: Todo;
-  onSave: (id: string, patch: { text: string; color: TodoColor | null }) => void;
+  onSave: (id: string, patch: { text: string; color: TodoColor | null; dueAt: number | null }) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }
@@ -15,6 +17,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   const [text, setText] = useState(todo.text);
   const [color, setColor] = useState<TodoColor | undefined>(todo.color);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [schedule, setSchedule] = useState(() => toDateTimeInput(todo.dueAt));
   const area = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -25,7 +28,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   }, []);
 
   function save() {
-    onSave(todo.id, { text, color: color ?? null });
+    onSave(todo.id, { text, color: color ?? null, dueAt: fromDateTimeInput(schedule) ?? null });
     onClose();
   }
 
@@ -34,7 +37,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
       <div
         role="dialog"
         aria-label="할 일 수정"
-        className="sheet-in w-full rounded-t-3xl bg-surface px-5 pt-5"
+        className="sheet-in max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5"
         style={{ paddingBottom: 'calc(var(--safe-bottom) + 20px)' }}
         onClick={event => event.stopPropagation()}
       >
@@ -50,6 +53,10 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
 
         <div className="mt-4 overflow-x-auto">
           <ColorPicker value={color} onChange={setColor} />
+        </div>
+
+        <div className="mt-2">
+          <ScheduleField id="edit-schedule" value={schedule} onChange={setSchedule} />
         </div>
 
         <div className="mt-5 flex gap-3">

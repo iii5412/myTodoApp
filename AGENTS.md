@@ -8,14 +8,14 @@
 - 데이터: **기기 로컬 저장**(`localStorage`, `src/lib/storage.ts`). 서버·DB·계정이 없다. 할 일 데이터를 서버로 보내는 기능을 만들지 않는다.
 - 서버: Express (`src/server/`). 웹 화면, Android 화면 묶음(`/api/live-update`), 상태 확인(`/api/health`)만 제공한다.
 - Android: Capacitor 8 (`android/`). 잠금 해제 시 자동 실행은 Java 네이티브 코드다.
-  - `UnlockLaunchService`: 포그라운드 서비스. `USER_PRESENT`(잠금 해제)를 받아 앱을 띄운다. "다른 앱 위에 표시" 권한이 없거나 시스템이 막으면 알림으로 대신한다.
+  - `UnlockLaunchService`: 포그라운드 서비스. `USER_PRESENT`(잠금 해제)를 받아 앱을 띄운다. "다른 앱 위에 표시" 권한이 필요하다. 앱 열기 안내 알림과 알림 권한 요청은 없고, Android 필수 서비스 표시만 유지한다.
   - `UnlockLaunchPlugin`: 설정 화면의 스위치와 권한 안내(JS 쪽은 `src/native/unlockLaunch.ts`).
   - `BootReceiver`: 재부팅·앱 업데이트 뒤 서비스를 다시 시작한다.
 - 데이터 로직은 `src/lib/todos.ts`에 순수 함수로 모여 있다. 화면 코드에서 목록을 직접 조작하지 말고 여기에 함수를 추가하고 테스트한다.
 
 ## 배포 흐름 (main에 반영되면 자동)
 
-1. `.github/workflows/ci.yml`: 타입 체크, 단위 테스트, 빌드.
+1. `.github/workflows/ci.yml`: 타입 체크, 단위 테스트, 웹·서버·Android 빌드. 개발용 APK를 7일간 보관한다.
 2. 통과하면 `.github/workflows/deploy.yml`이 Cloud Run에 배포한다. 기존 서비스는 새 버전을 먼저 트래픽 없이 올리고, 확인을 통과해야 전환한다.
 3. 같은 이미지에 Android 화면 묶음이 들어 있어, 설치된 앱은 새 화면을 내려받는다(`src/lib/liveUpdate.ts`).
 

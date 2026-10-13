@@ -1,10 +1,13 @@
 import { ArrowUp } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { TodoColor } from '../lib/todos';
+import { formatSchedule, fromDateTimeInput, toDateTimeInput } from '../lib/format';
+import { inferSchedule } from '../lib/schedule';
 import { ColorPicker } from './ColorPicker';
+import { ScheduleField } from './ScheduleField';
 
 interface Props {
-  onAdd: (text: string, color: TodoColor | undefined) => void;
+  onAdd: (text: string, color: TodoColor | undefined, dueAt?: number) => void;
 }
 
 /** Sits at the bottom where the thumb is. Color choices appear while typing. */
@@ -12,19 +15,26 @@ export function AddBar({ onAdd }: Props) {
   const [text, setText] = useState('');
   const [color, setColor] = useState<TodoColor | undefined>();
   const [focused, setFocused] = useState(false);
+  const [schedule, setSchedule] = useState('');
+  const [manualSchedule, setManualSchedule] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const canSubmit = text.trim().length > 0;
 
   function submit() {
     if (!canSubmit) return;
-    onAdd(text, color);
+    onAdd(text, color, fromDateTimeInput(schedule));
     setText('');
+    setSchedule('');
+    setManualSchedule(false);
     // Keep the keyboard up so several tasks can be entered in a row.
     inputRef.current?.focus();
   }
 
   return (
     <form
+      onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
       onSubmit={event => {
         event.preventDefault();
         submit();
@@ -32,6 +42,15 @@ export function AddBar({ onAdd }: Props) {
       className="border-t border-line bg-bg/95 px-4 pt-3 backdrop-blur"
       style={{ paddingBottom: 'calc(var(--safe-bottom) + 12px)' }}
     >
+      <ScheduleField id="add-schedule" value={schedule} onChange={value => {
+        setManualSchedule(true);
+        setSchedule(value);
+      }} />
+      {schedule && !manualSchedule && (
+        <p role="status" className="m-0 mb-3 text-[13px] text-muted">
+          자동 설정 · {formatSchedule(fromDateTimeInput(schedule)!)} · 위에서 수정 가능
+        </p>
+      )}
       {(focused || canSubmit) && (
         <div
           className="fade-in mb-3 overflow-x-auto"
@@ -45,9 +64,12 @@ export function AddBar({ onAdd }: Props) {
         <input
           ref={inputRef}
           value={text}
-          onChange={event => setText(event.target.value)}
+          onChange={event => {
+            const next = event.target.value;
+            setText(next);
+            if (!manualSchedule) setSchedule(toDateTimeInput(inferSchedule(next)));
+          }}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           enterKeyHint="done"
           maxLength={500}
           placeholder="할 일 추가"

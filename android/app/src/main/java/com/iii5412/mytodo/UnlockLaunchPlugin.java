@@ -1,31 +1,19 @@
 package com.iii5412.mytodo;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 
-import androidx.core.app.NotificationManagerCompat;
-
 import com.getcapacitor.JSObject;
-import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.Permission;
-import com.getcapacitor.annotation.PermissionCallback;
 
-/** Bridge for the settings screen: the unlock switch and the three phone permissions behind it. */
-@CapacitorPlugin(
-    name = "UnlockLaunch",
-    permissions = {
-        @Permission(strings = {Manifest.permission.POST_NOTIFICATIONS}, alias = "notifications")
-    }
-)
+/** Bridge for the unlock switch, overlay permission and battery settings. */
+@CapacitorPlugin(name = "UnlockLaunch")
 public class UnlockLaunchPlugin extends Plugin {
 
     private JSObject status() {
@@ -34,7 +22,6 @@ public class UnlockLaunchPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("enabled", UnlockPrefs.isEnabled(context));
         result.put("overlayGranted", Settings.canDrawOverlays(context));
-        result.put("notificationsGranted", NotificationManagerCompat.from(context).areNotificationsEnabled());
         result.put("batteryUnrestricted", power != null && power.isIgnoringBatteryOptimizations(context.getPackageName()));
         return result;
     }
@@ -69,22 +56,6 @@ public class UnlockLaunchPlugin extends Plugin {
             new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, packageUri()),
             new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
         );
-    }
-
-    @PluginMethod
-    public void requestNotifications(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
-            requestPermissionForAlias("notifications", call, "notificationsResult");
-        } else {
-            call.resolve(status());
-        }
-    }
-
-    @PermissionCallback
-    private void notificationsResult(PluginCall call) {
-        // The status notification only appears once notifications are allowed; refresh it.
-        if (UnlockPrefs.isEnabled(getContext())) UnlockLaunchService.start(getContext());
-        call.resolve(status());
     }
 
     private Uri packageUri() {

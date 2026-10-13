@@ -5,8 +5,6 @@ export interface UnlockStatus {
   enabled: boolean;
   /** "Display over other apps": what lets the app open itself from the background. */
   overlayGranted: boolean;
-  /** Needed for the status notification and for the fallback tap-to-open notification. */
-  notificationsGranted: boolean;
   /** Keeps the phone's battery saver from stopping the unlock watcher. */
   batteryUnrestricted: boolean;
 }
@@ -15,7 +13,6 @@ interface UnlockLaunchPlugin {
   getStatus(): Promise<UnlockStatus>;
   setEnabled(options: { enabled: boolean }): Promise<UnlockStatus>;
   openOverlaySettings(): Promise<void>;
-  requestNotifications(): Promise<UnlockStatus>;
   openBatterySettings(): Promise<void>;
 }
 

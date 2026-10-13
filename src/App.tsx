@@ -11,7 +11,7 @@ import { formatHeaderDate, startOfToday } from './lib/format';
 import { isNativeAndroid } from './lib/platform';
 import { loadData, saveData } from './lib/storage';
 import {
-  addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, moveTodo, restoreTodo,
+  addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, moveTodo, restoreTodo, sortTodos,
   type AppData, type TodoColor,
 } from './lib/todos';
 
@@ -36,6 +36,13 @@ export default function App() {
   useEffect(() => {
     saveData(data);
   }, [data]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setToday(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const visibleTodos = useMemo(() => sortTodos(data.todos, today.getTime()), [data.todos, today]);
 
   // Let the toast float just above the add bar, whatever its height (keyboard, color row).
   useLayoutEffect(() => {
@@ -84,8 +91,9 @@ export default function App() {
     return data.history.filter(item => (item.completedAt ?? 0) >= start).length;
   }, [data.history, today]);
 
-  const add = useCallback((text: string, color: TodoColor | undefined) => {
-    setData(current => addTodo(current, text, Date.now(), color));
+  const add = useCallback((text: string, color: TodoColor | undefined, dueAt?: number) => {
+    setData(current => addTodo(current, text, Date.now(), color, dueAt));
+    setToday(new Date());
   }, []);
 
   const complete = useCallback(
@@ -188,7 +196,7 @@ export default function App() {
           </div>
         ) : (
           <TodoList
-            todos={data.todos}
+            todos={visibleTodos}
             completingId={completingId}
             onMove={(from, to) => setData(current => moveTodo(current, from, to))}
             onComplete={complete}

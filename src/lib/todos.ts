@@ -5,13 +5,15 @@ export interface Todo {
   id: string;
   text: string;
   color?: TodoColor;
+  /** Optional scheduled date and time, stored as an absolute timestamp. */
+  dueAt?: number;
   createdAt: number;
   completedAt?: number;
 }
 
 export interface AppData {
   version: 1;
-  /** Open tasks in the order shown on screen. */
+  /** Saved/manual order; scheduled tasks are sorted separately for display. */
   todos: Todo[];
   /** Completed tasks, newest first. */
   history: Todo[];
@@ -24,14 +26,14 @@ export function newId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function addTodo(data: AppData, text: string, now = Date.now(), color?: TodoColor): AppData {
+export function addTodo(data: AppData, text: string, now = Date.now(), color?: TodoColor, dueAt?: number): AppData {
   const clean = text.trim();
   if (!clean) return data;
-  const todo: Todo = { id: newId(), text: clean, createdAt: now, ...(color ? { color } : {}) };
-  return { ...data, todos: [...data.todos, todo] };
+  const todo: Todo = { id: newId(), text: clean, createdAt: now, ...(color ? { color } : {}), ...(validDueAt(dueAt) ? { dueAt } : {}) };
+  return { ...data, todos: [todo, ...data.todos] };
 }
 
-export function editTodo(data: AppData, id: string, patch: { text?: string; color?: TodoColor | null }): AppData {
+export function editTodo(data: AppData, id: string, patch: { text?: string; color?: TodoColor | null; dueAt?: number | null }): AppData {
   return {
     ...data,
     todos: data.todos.map(todo => {
@@ -40,9 +42,27 @@ export function editTodo(data: AppData, id: string, patch: { text?: string; colo
       if (patch.text !== undefined && patch.text.trim()) next.text = patch.text.trim();
       if (patch.color === null) delete next.color;
       else if (patch.color) next.color = patch.color;
+      if (patch.dueAt === null) delete next.dueAt;
+      else if (validDueAt(patch.dueAt)) next.dueAt = patch.dueAt;
       return next;
     }),
   };
+}
+
+function validDueAt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && Number.isFinite(new Date(value).getTime());
+}
+
+/** Scheduled tasks nearest to now first; otherwise preserve the saved/manual order. */
+export function sortTodos(todos: Todo[], now = Date.now()): Todo[] {
+  return [...todos].sort((a, b) => {
+    const aScheduled = validDueAt(a.dueAt);
+    const bScheduled = validDueAt(b.dueAt);
+    if (aScheduled && bScheduled) return Math.abs(a.dueAt! - now) - Math.abs(b.dueAt! - now);
+    if (aScheduled) return -1;
+    if (bScheduled) return 1;
+    return 0;
+  });
 }
 
 export function completeTodo(data: AppData, id: string, now = Date.now()): AppData {
@@ -107,6 +127,7 @@ function parseTodo(value: unknown): Todo | null {
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
   };
   if (COLORS.includes(input.color as TodoColor)) todo.color = input.color as TodoColor;
+  if (validDueAt(input.dueAt)) todo.dueAt = input.dueAt;
   const completedAt = Number(input.completedAt);
   if (input.completedAt !== undefined && Number.isFinite(completedAt)) todo.completedAt = completedAt;
   return todo;

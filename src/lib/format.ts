@@ -27,3 +27,24 @@ export function formatDayLabel(day: string, now = new Date()): string {
 export function startOfToday(now = new Date()): number {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 }
+
+/** datetime-local uses the device's local time, not a UTC ISO string. */
+export function toDateTimeInput(timestamp?: number): string {
+  if (timestamp === undefined) return '';
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function fromDateTimeInput(value: string): number | undefined {
+  if (!value) return undefined;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+export function formatSchedule(timestamp: number, now = new Date()): string {
+  const date = new Date(timestamp);
+  const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return `${formatDayLabel(day, now)} · ${formatTime(timestamp)}`;
+}

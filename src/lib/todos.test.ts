@@ -1,18 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import {
   addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, emptyData,
-  groupByDay, insertTodo, moveTodo, parseAppData, restoreTodo,
+  groupByDay, insertTodo, moveTodo, parseAppData, restoreTodo, sortTodos,
 } from './todos';
 
 function withTodos(...texts: string[]) {
-  return texts.reduce((data, text, i) => addTodo(data, text, 1000 + i), emptyData());
+  return texts.reduceRight((data, text, i) => addTodo(data, text, 1000 + i), emptyData());
 }
 
 describe('todos', () => {
-  it('adds trimmed text at the end and ignores blanks', () => {
+  it('adds trimmed text at the top and ignores blanks', () => {
     const data = addTodo(withTodos('a'), '  b  ', 5);
-    expect(data.todos.map(t => t.text)).toEqual(['a', 'b']);
+    expect(data.todos.map(t => t.text)).toEqual(['b', 'a']);
     expect(addTodo(data, '   ')).toBe(data);
+  });
+
+  it('sorts scheduled tasks by proximity to now, then keeps the manual order of unscheduled tasks', () => {
+    let data = withTodos('older', 'oldest');
+    data = addTodo(data, 'far future', 1, undefined, 8000);
+    data = addTodo(data, 'near future', 2, 'blue', 5200);
+    data = addTodo(data, 'near past', 3, undefined, 4900);
+    data = addTodo(data, 'newest', 4);
+    const original = [...data.todos];
+    expect(sortTodos(data.todos, 5000).map(t => t.text)).toEqual(['near past', 'near future', 'far future', 'newest', 'older', 'oldest']);
+    expect(sortTodos(data.todos, 5300).map(t => t.text).slice(0, 2)).toEqual(['near future', 'near past']);
+    expect(data.todos).toEqual(original);
+    expect(sortTodos(moveTodo(data, data.todos[4].id, data.todos[5].id).todos, 5000).map(t => t.text).slice(-3)).toEqual(['newest', 'oldest', 'older']);
+  });
+
+  it('preserves a schedule through completion, restore and backup parsing, and lets it be removed', () => {
+    let data = addTodo(withTodos('old task'), 'scheduled', 100, 'red', 5000);
+    const id = data.todos[0].id;
+    data = editTodo(data, id, { dueAt: 6000 });
+    data = completeTodo(data, id, 7000);
+    expect(data.history[0]).toMatchObject({ id, dueAt: 6000, completedAt: 7000 });
+    data = parseAppData(JSON.parse(JSON.stringify(data)))!;
+    data = restoreTodo(data, id);
+    expect(data.todos.find(t => t.id === id)).toMatchObject({ dueAt: 6000 });
+    data = editTodo(data, id, { dueAt: null });
+    expect(data.todos.find(t => t.id === id)?.dueAt).toBeUndefined();
+  });
+
+  it('keeps old backups readable and ignores invalid schedules without dropping tasks', () => {
+    const values = [undefined, null, 'tomorrow', Infinity, NaN, 1e20, 5000];
+    const parsed = parseAppData({ todos: values.map((dueAt, i) => ({ id: String(i), text: 'task', createdAt: 1, dueAt })), history: [] })!;
+    expect(parsed.todos).toHaveLength(7);
+    expect(parsed.todos.map(t => t.dueAt)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, 5000]);
+    expect(addTodo(emptyData(), 'task', 1, undefined, NaN).todos[0].dueAt).toBeUndefined();
+  });
+
+  it('preserves saved order when scheduled times are equally close', () => {
+    const data = addTodo(addTodo(emptyData(), 'future', 1, undefined, 6000), 'past', 2, undefined, 4000);
+    expect(sortTodos(data.todos, 5000).map(t => t.text)).toEqual(['past', 'future']);
   });
 
   it('completes a task into history, newest first', () => {

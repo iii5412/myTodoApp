@@ -1,5 +1,5 @@
 import { App as CapacitorApp } from '@capacitor/app';
-import { Battery, Bell, Check, Layers } from 'lucide-react';
+import { Battery, Check, Layers } from 'lucide-react';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { isNativeAndroid } from '../lib/platform';
 import { UnlockLaunch, type UnlockStatus } from '../native/unlockLaunch';
@@ -43,7 +43,7 @@ function Step({ icon, title, hint, done, onFix, required }: { icon: ReactNode; t
   );
 }
 
-/** Switch plus the three phone permissions it needs; re-reads them when the user returns from system settings. */
+/** Re-reads overlay and battery settings when the user returns from system settings. */
 export function UnlockSection() {
   const [status, setStatus] = useState<UnlockStatus | null>(null);
   const [error, setError] = useState('');
@@ -101,13 +101,6 @@ export function UnlockSection() {
             hint="앱이 스스로 화면을 띄우려면 필요해요"
             done={status.overlayGranted}
             onFix={() => void UnlockLaunch.openOverlaySettings()}
-          />
-          <Step
-            icon={<Bell size={20} />}
-            title="알림"
-            hint="실행 중 표시, 바로 열기가 막힐 때 알림으로 알려줘요"
-            done={status.notificationsGranted}
-            onFix={() => void UnlockLaunch.requestNotifications().then(setStatus)}
           />
           <Step
             icon={<Battery size={20} />}
