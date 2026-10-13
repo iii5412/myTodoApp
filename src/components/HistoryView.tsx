@@ -1,5 +1,5 @@
 import { CheckCheck, RotateCcw, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { formatDayLabel, formatTime } from '../lib/format';
 import { groupByDay, type Todo } from '../lib/todos';
 import { COLOR_VAR } from './colors';
@@ -15,7 +15,6 @@ interface Props {
 
 export function HistoryView({ history, onBack, onRestore, onDelete, onClear }: Props) {
   const groups = useMemo(() => groupByDay(history), [history]);
-  const [confirmClear, setConfirmClear] = useState(false);
 
   return (
     <div className="flex h-full flex-col">
@@ -26,11 +25,10 @@ export function HistoryView({ history, onBack, onRestore, onDelete, onClear }: P
           history.length > 0 && (
             <button
               type="button"
-              onClick={() => (confirmClear ? (setConfirmClear(false), onClear()) : setConfirmClear(true))}
-              onBlur={() => setConfirmClear(false)}
-              className={`mr-2 h-11 rounded-xl px-4 text-[15px] font-bold ${confirmClear ? 'bg-danger text-white' : 'text-danger'}`}
+              onClick={onClear}
+              className="mr-2 h-11 rounded-xl px-4 text-[15px] font-bold text-danger"
             >
-              {confirmClear ? '정말 모두 삭제' : '전체 삭제'}
+              전체 삭제
             </button>
           )
         }

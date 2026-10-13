@@ -3,7 +3,7 @@
  * Ambiguous/invalid expressions are left for the user to set manually.
  */
 export function inferSchedule(text: string, now = new Date()): number | undefined {
-  const relative = text.match(/(?:^|\s)(\d+)\s*(분|시간|일)\s*(?:후|뒤)(?=$|\s|에)/);
+  const relative = text.match(/(?:^|[\s.,!?;·，。！？])(\d+)\s*(분|시간|일)\s*(?:후|뒤)(?=$|[\s.,!?;·，。！？]|에)/);
   if (relative) {
     const amount = Number(relative[1]);
     if (amount < 1 || amount > 365) return undefined;
@@ -16,9 +16,9 @@ export function inferSchedule(text: string, now = new Date()): number | undefine
 
   const date = new Date(now);
   let hasDate = false;
-  const calendar = text.match(/(?:^|\s)(?:(\d{4})(?:년\s*|[-/.]))?(\d{1,2})(?:월\s*|[-/])(\d{1,2})(?:일)?(?=$|\s|에|[T])/);
-  const day = text.match(/(?:^|\s)(오늘|내일|모레)(?=$|\s|에)/);
-  const weekday = text.match(/(?:^|\s)(?:(이번\s*주|다음\s*주)\s*)?([월화수목금토일])요일(?=$|\s|에)/);
+  const calendar = text.match(/(?:^|[\s.,!?;·，。！？])(?:(\d{4})(?:년\s*|[-/.]))?(\d{1,2})(?:월\s*|[-/])(\d{1,2})(?:일)?(?=$|[\s.,!?;·，。！？]|에|T)/);
+  const day = text.match(/(?:^|[\s.,!?;·，。！？])(오늘|내일|모레)(?=$|[\s.,!?;·，。！？]|에)/);
+  const weekday = text.match(/(?:^|[\s.,!?;·，。！？])(?:(이번\s*주|다음\s*주)\s*)?([월화수목금토일])요일(?=$|[\s.,!?;·，。！？]|에)/);
   if (calendar) {
     const year = calendar[1] ? Number(calendar[1]) : now.getFullYear();
     const month = Number(calendar[2]) - 1;
@@ -44,7 +44,7 @@ export function inferSchedule(text: string, now = new Date()): number | undefine
     hasDate = true;
   }
 
-  const clock = text.match(/(?:^|\s|T)(?:(오전|오후|아침|점심|저녁|밤|새벽)\s*)?(\d{1,2})(?::(\d{2})|시(?:\s*(반|\d{1,2}\s*분))?)(?=$|\s|에|까지)/);
+  const clock = text.match(/(?:^|[\s.,!?;·，。！？]|T)(?:(오전|오후|아침|점심|저녁|밤|새벽)\s*)?(\d{1,2})(?::(\d{2})|시(?:\s*(반|\d{1,2}\s*분))?)(?=$|[\s.,!?;·，。！？]|에|까지)/);
   let hour = 9;
   let minute = 0;
   if (clock) {
@@ -56,9 +56,9 @@ export function inferSchedule(text: string, now = new Date()): number | undefine
       hour %= 12;
       if (['오후', '점심', '저녁', '밤'].includes(clock[1])) hour += 12;
     }
-  } else if (/(?:^|\s)정오(?=$|\s|에)/.test(text)) {
+  } else if (/(?:^|[\s.,!?;·，。！？])정오(?=$|[\s.,!?;·，。！？]|에)/.test(text)) {
     hour = 12;
-  } else if (/(?:^|\s)자정(?=$|\s|에)/.test(text)) {
+  } else if (/(?:^|[\s.,!?;·，。！？])자정(?=$|[\s.,!?;·，。！？]|에)/.test(text)) {
     hour = 0;
   } else {
     // Don't silently replace a malformed time with the date-only default.

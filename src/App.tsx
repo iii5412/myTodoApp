@@ -1,7 +1,8 @@
 import { App as CapacitorApp } from '@capacitor/app';
 import { CheckCheck, Settings } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AddBar } from './components/AddBar';
+import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
 import { EditSheet } from './components/EditSheet';
 import { HistoryView } from './components/HistoryView';
 import { SettingsView } from './components/SettingsView';
@@ -16,6 +17,7 @@ import {
 } from './lib/todos';
 
 type View = 'home' | 'settings' | 'history';
+type PendingDelete = { kind: 'todo' | 'history'; id: string; text: string } | { kind: 'history-all'; count: number };
 interface ToastState {
   message: string;
   undo?: () => void;
@@ -27,6 +29,7 @@ export default function App() {
   const [data, setData] = useState<AppData>(loadData);
   const [view, setView] = useState<View>('home');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [today, setToday] = useState(() => new Date());
@@ -57,19 +60,21 @@ export default function App() {
   }, [view]);
 
   // Android back button and the unlock launch both land here.
-  const stateRef = useRef({ view, editingId });
-  stateRef.current = { view, editingId };
+  const stateRef = useRef({ view, editingId, pendingDelete });
+  stateRef.current = { view, editingId, pendingDelete };
   useEffect(() => {
     const goHome = () => {
       setView('home');
       setEditingId(null);
+      setPendingDelete(null);
       setToday(new Date());
     };
     window.addEventListener('mytodoUnlock', goHome);
     const back = isNativeAndroid()
       ? CapacitorApp.addListener('backButton', () => {
-          const { view: current, editingId: editing } = stateRef.current;
-          if (editing) setEditingId(null);
+          const { view: current, editingId: editing, pendingDelete: deleting } = stateRef.current;
+          if (deleting) setPendingDelete(null);
+          else if (editing) setEditingId(null);
           else if (current === 'history') setView('settings');
           else if (current === 'settings') setView('home');
           else void CapacitorApp.minimizeApp();
@@ -128,106 +133,141 @@ export default function App() {
     setToast(null);
   }, [toast]);
 
+  function requestDelete(id: string) {
+    const todo = data.todos.find(item => item.id === id);
+    if (todo) setPendingDelete({ kind: 'todo', id, text: todo.text });
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    if (pendingDelete.kind === 'todo') {
+      remove(pendingDelete.id);
+      if (editingId === pendingDelete.id) setEditingId(null);
+    } else if (pendingDelete.kind === 'history') {
+      const id = pendingDelete.id;
+      setData(current => deleteHistoryItem(current, id));
+    } else {
+      setData(current => clearHistory(current));
+    }
+    setPendingDelete(null);
+  }
+
   const editing = editingId ? data.todos.find(todo => todo.id === editingId) : undefined;
   const remaining = data.todos.length;
   const total = doneToday + remaining;
 
+  let content: ReactNode;
   if (view === 'settings') {
-    return (
+    content = (
       <div className="mx-auto h-full max-w-xl">
         <SettingsView data={data} onBack={() => setView('home')} onOpenHistory={() => setView('history')} onReplaceData={setData} />
       </div>
     );
-  }
-
-  if (view === 'history') {
-    return (
+  } else if (view === 'history') {
+    content = (
       <div className="mx-auto h-full max-w-xl">
         <HistoryView
           history={data.history}
           onBack={() => setView('settings')}
           onRestore={id => setData(current => restoreTodo(current, id))}
-          onDelete={id => setData(current => deleteHistoryItem(current, id))}
-          onClear={() => setData(clearHistory)}
+          onDelete={id => {
+            const item = data.history.find(todo => todo.id === id);
+            if (item) setPendingDelete({ kind: 'history', id, text: item.text });
+          }}
+          onClear={() => setPendingDelete({ kind: 'history-all', count: data.history.length })}
         />
+      </div>
+    );
+  } else {
+    content = (
+      <div ref={rootRef} className="relative mx-auto flex h-full max-w-xl flex-col">
+        <header className="shrink-0 px-5 pb-3" style={{ paddingTop: 'calc(var(--safe-top) + 20px)' }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="m-0 text-[28px] leading-tight font-extrabold tracking-tight">{formatHeaderDate(today)}</h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => setView('settings')}
+              aria-label="설정"
+              className="-mr-2 grid size-12 place-items-center rounded-full text-muted active:bg-sunken"
+            >
+              <Settings size={26} />
+            </button>
+          </div>
+
+          {total > 0 && (
+            <div className="mt-4">
+              <div className="flex items-baseline justify-between text-[14px] font-semibold">
+                <span>
+                  <span className="text-[22px] font-extrabold text-accent">{remaining}</span>
+                  <span className="ml-1 text-muted">개 남음</span>
+                </span>
+                <span className="text-muted">오늘 {doneToday}개 완료</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneToday}>
+                <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${(doneToday / total) * 100}%` }} />
+              </div>
+            </div>
+          )}
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-4 pt-1 pb-6">
+          {remaining === 0 ? (
+            <div className="mt-20 flex flex-col items-center gap-3 text-center text-muted">
+              <CheckCheck size={52} strokeWidth={1.5} className={doneToday > 0 ? 'text-tag-green' : ''} />
+              <p className="m-0 text-[19px] font-bold text-ink">{doneToday > 0 ? '할 일을 모두 끝냈어요' : '할 일이 없어요'}</p>
+              <p className="m-0 text-[15px]">아래에서 새 할 일을 추가해 보세요</p>
+            </div>
+          ) : (
+            <TodoList
+              todos={visibleTodos}
+              completingId={completingId}
+              onMove={(from, to) => setData(current => moveTodo(current, from, to))}
+              onComplete={complete}
+              onEdit={setEditingId}
+              onDelete={requestDelete}
+            />
+          )}
+        </main>
+
+        {toast && (
+          <Toast
+            message={toast.message}
+            actionLabel={toast.undo ? '되돌리기' : undefined}
+            onAction={runUndo}
+            onDone={() => setToast(null)}
+          />
+        )}
+
+        <div ref={addBarRef} className="shrink-0">
+          <AddBar onAdd={add} />
+        </div>
+
+        {editing && (
+          <EditSheet
+            key={editing.id}
+            todo={editing}
+            onSave={(id, patch) => setData(current => editTodo(current, id, patch))}
+            onDelete={requestDelete}
+            onClose={() => setEditingId(null)}
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div ref={rootRef} className="relative mx-auto flex h-full max-w-xl flex-col">
-      <header className="shrink-0 px-5 pb-3" style={{ paddingTop: 'calc(var(--safe-top) + 20px)' }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="m-0 text-[28px] leading-tight font-extrabold tracking-tight">{formatHeaderDate(today)}</h1>
-          </div>
-          <button
-            type="button"
-            onClick={() => setView('settings')}
-            aria-label="설정"
-            className="-mr-2 grid size-12 place-items-center rounded-full text-muted active:bg-sunken"
-          >
-            <Settings size={26} />
-          </button>
-        </div>
-
-        {total > 0 && (
-          <div className="mt-4">
-            <div className="flex items-baseline justify-between text-[14px] font-semibold">
-              <span>
-                <span className="text-[22px] font-extrabold text-accent">{remaining}</span>
-                <span className="ml-1 text-muted">개 남음</span>
-              </span>
-              <span className="text-muted">오늘 {doneToday}개 완료</span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneToday}>
-              <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${(doneToday / total) * 100}%` }} />
-            </div>
-          </div>
-        )}
-      </header>
-
-      <main className="flex-1 overflow-y-auto px-4 pt-1 pb-6">
-        {remaining === 0 ? (
-          <div className="mt-20 flex flex-col items-center gap-3 text-center text-muted">
-            <CheckCheck size={52} strokeWidth={1.5} className={doneToday > 0 ? 'text-tag-green' : ''} />
-            <p className="m-0 text-[19px] font-bold text-ink">{doneToday > 0 ? '할 일을 모두 끝냈어요' : '할 일이 없어요'}</p>
-            <p className="m-0 text-[15px]">아래에서 새 할 일을 추가해 보세요</p>
-          </div>
-        ) : (
-          <TodoList
-            todos={visibleTodos}
-            completingId={completingId}
-            onMove={(from, to) => setData(current => moveTodo(current, from, to))}
-            onComplete={complete}
-            onEdit={setEditingId}
-            onDelete={remove}
-          />
-        )}
-      </main>
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          actionLabel={toast.undo ? '되돌리기' : undefined}
-          onAction={runUndo}
-          onDone={() => setToast(null)}
+    <>
+      {content}
+      {pendingDelete && (
+        <DeleteConfirmDialog
+          title={pendingDelete.kind === 'history-all' ? '완료 이력을 모두 삭제할까요?' : pendingDelete.kind === 'history' ? '완료 이력을 삭제할까요?' : '할 일을 삭제할까요?'}
+          description={pendingDelete.kind === 'history-all' ? `완료 이력 ${pendingDelete.count}개를 모두 삭제해요. 삭제한 이력은 되돌릴 수 없어요.` : pendingDelete.kind === 'history' ? `“${pendingDelete.text}” 이력을 삭제해요. 삭제한 이력은 되돌릴 수 없어요.` : `“${pendingDelete.text}” 할 일을 삭제해요.`}
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
         />
       )}
-
-      <div ref={addBarRef} className="shrink-0">
-        <AddBar onAdd={add} />
-      </div>
-
-      {editing && (
-        <EditSheet
-          key={editing.id}
-          todo={editing}
-          onSave={(id, patch) => setData(current => editTodo(current, id, patch))}
-          onDelete={remove}
-          onClose={() => setEditingId(null)}
-        />
-      )}
-    </div>
+    </>
   );
 }

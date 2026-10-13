@@ -5,6 +5,14 @@ const now = new Date(2026, 9, 13, 16, 20); // Tuesday; local timezone, same as t
 const at = (day: number, hour = 9, minute = 0, month = 9, year = 2026) => new Date(year, month, day, hour, minute).getTime();
 
 describe('inferSchedule', () => {
+  it('accepts punctuation between the date, time and task without reading 반차 as half past', () => {
+    expect(inferSchedule('오늘 오후 4시.반차', now)).toBe(at(13, 16));
+    expect(inferSchedule('오늘,오후 4시.반차', now)).toBe(at(13, 16));
+    expect(inferSchedule('내일 오후 4시 반.회의', now)).toBe(at(14, 16, 30));
+    expect(inferSchedule('10월 20일,오전 9:30.회의', now)).toBe(at(20, 9, 30));
+    expect(inferSchedule('오늘 정오.점심', now)).toBe(at(13, 12));
+    expect(inferSchedule('30분 후.전화', now)).toBe(at(13, 16, 50));
+  });
   it('recognizes Korean dates, clocks, half hours and dates without times', () => {
     expect(inferSchedule('내일 오후 3시 병원', now)).toBe(at(14, 15));
     expect(inferSchedule('장보기 모레 오전 9시 반', now)).toBe(at(15, 9, 30));

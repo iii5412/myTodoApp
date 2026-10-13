@@ -16,7 +16,6 @@ interface Props {
 export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   const [text, setText] = useState(todo.text);
   const [color, setColor] = useState<TodoColor | undefined>(todo.color);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [schedule, setSchedule] = useState(() => toDateTimeInput(todo.dueAt));
   const area = useRef<HTMLTextAreaElement>(null);
 
@@ -60,27 +59,14 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
         </div>
 
         <div className="mt-5 flex gap-3">
-          {confirmDelete ? (
-            <button
-              type="button"
-              onClick={() => {
-                onDelete(todo.id);
-                onClose();
-              }}
-              className="h-14 flex-1 rounded-2xl bg-danger text-[17px] font-bold text-white"
-            >
-              정말 삭제
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              aria-label="삭제"
-              className="grid size-14 shrink-0 place-items-center rounded-2xl bg-sunken text-danger"
-            >
-              <Trash2 size={22} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onDelete(todo.id)}
+            aria-label="삭제"
+            className="grid size-14 shrink-0 place-items-center rounded-2xl bg-sunken text-danger"
+          >
+            <Trash2 size={22} />
+          </button>
           <button
             type="button"
             onClick={save}

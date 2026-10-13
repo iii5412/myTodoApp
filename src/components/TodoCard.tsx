@@ -20,7 +20,7 @@ const SNAP_MS = 180;
 
 /**
  * Swipe left to right to delete: the card follows the finger over a red "삭제" layer and is
- * removed when let go past the threshold. Touch only (a mouse drag would clash with drag
+ * asks for confirmation when let go past the threshold. Touch only (a mouse drag would clash with drag
  * sorting); the edit sheet keeps a delete button for that.
  */
 export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Props) {
@@ -83,8 +83,9 @@ export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Pro
     const width = event.currentTarget.offsetWidth;
     const dx = Math.max(0, event.clientX - state.x);
     if (!cancelled && shouldDelete(dx, width)) {
-      paint(width, true);
-      window.setTimeout(() => onDelete(todo.id), SNAP_MS);
+      // Put the card back before opening the dialog so cancel leaves it fully visible.
+      paint(0, true);
+      onDelete(todo.id);
     } else {
       paint(0, true);
     }
