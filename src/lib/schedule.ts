@@ -1,5 +1,6 @@
 /** Korean quick-entry dates, interpreted on the device without sending the task anywhere.
  * Date-only expressions use 09:00. Time-only expressions use the next occurrence.
+ * Unqualified 1–6시 (or 1:00–6:59) means afternoon; zero-padded 24-hour clocks stay literal.
  * Ambiguous/invalid expressions are left for the user to set manually.
  */
 export function inferSchedule(text: string, now = new Date()): number | undefined {
@@ -54,7 +55,9 @@ export function inferSchedule(text: string, now = new Date()): number | undefine
     if (clock[1]) {
       if (hour < 1 || hour > 12) return undefined;
       hour %= 12;
-      if (['오후', '점심', '저녁', '밤'].includes(clock[1])) hour += 12;
+      if (['오후', '점심', '저녁'].includes(clock[1]) || (clock[1] === '밤' && hour >= 6)) hour += 12;
+    } else if (hour >= 1 && hour <= 6 && !(clock[3] && clock[2].length === 2)) {
+      hour += 12;
     }
   } else if (/(?:^|[\s.,!?;·，。！？])정오(?=$|[\s.,!?;·，。！？]|에)/.test(text)) {
     hour = 12;
@@ -67,4 +70,14 @@ export function inferSchedule(text: string, now = new Date()): number | undefine
   date.setHours(hour, minute, 0, 0);
   if (!hasDate && date.getTime() <= now.getTime()) date.setDate(date.getDate() + 1);
   return date.getTime();
+}
+
+/** Only a changed date/time expression reschedules an existing task. Comparing against
+ * one editing-session clock prevents "내일" or "30분 후" from drifting on title-only edits.
+ * Removing the expression clears its schedule; a task with no expression keeps its manual date.
+ */
+export function inferEditedSchedule(previousText: string, nextText: string, currentDueAt: number | undefined, now = new Date()): number | undefined {
+  const previous = inferSchedule(previousText, now);
+  const next = inferSchedule(nextText, now);
+  return previous === next ? currentDueAt : next;
 }

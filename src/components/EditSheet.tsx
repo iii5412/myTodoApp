@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Todo, TodoColor } from '../lib/todos';
 import { ColorPicker } from './ColorPicker';
 import { ScheduleField } from './ScheduleField';
-import { fromDateTimeInput, toDateTimeInput } from '../lib/format';
+import { formatSchedule, fromDateTimeInput, toDateTimeInput } from '../lib/format';
+import { inferEditedSchedule } from '../lib/schedule';
 
 interface Props {
   todo: Todo;
@@ -17,6 +18,9 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   const [text, setText] = useState(todo.text);
   const [color, setColor] = useState<TodoColor | undefined>(todo.color);
   const [schedule, setSchedule] = useState(() => toDateTimeInput(todo.dueAt));
+  const [manualSchedule, setManualSchedule] = useState(false);
+  const [autoScheduleChanged, setAutoScheduleChanged] = useState(false);
+  const scheduleReference = useRef(new Date());
   const area = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -43,7 +47,17 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
         <textarea
           ref={area}
           value={text}
-          onChange={event => setText(event.target.value)}
+          onChange={event => {
+            const nextText = event.target.value;
+            if (!manualSchedule) {
+              const nextSchedule = toDateTimeInput(inferEditedSchedule(text, nextText, fromDateTimeInput(schedule), scheduleReference.current));
+              if (nextSchedule !== schedule) {
+                setSchedule(nextSchedule);
+                setAutoScheduleChanged(true);
+              }
+            }
+            setText(nextText);
+          }}
           rows={3}
           maxLength={500}
           aria-label="할 일 내용"
@@ -55,7 +69,16 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
         </div>
 
         <div className="mt-2">
-          <ScheduleField id="edit-schedule" value={schedule} onChange={setSchedule} />
+          <ScheduleField id="edit-schedule" value={schedule} onChange={value => {
+            setManualSchedule(true);
+            setAutoScheduleChanged(false);
+            setSchedule(value);
+          }} />
+          {autoScheduleChanged && (
+            <p role="status" className="m-0 mt-1 text-[13px] text-muted">
+              {schedule ? `내용에 맞춰 변경 · ${formatSchedule(fromDateTimeInput(schedule)!)}` : '내용에서 일정을 인식하지 못해 해제했어요'}
+            </p>
+          )}
         </div>
 
         <div className="mt-5 flex gap-3">
