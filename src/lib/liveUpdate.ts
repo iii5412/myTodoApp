@@ -1,6 +1,6 @@
 import { App as CapacitorApp } from '@capacitor/app';
 import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater';
-import { apiUrl } from './api';
+import { apiUrl, getApiBaseUrl } from './api';
 import { isNativeAndroid } from './platform';
 
 /**
@@ -164,6 +164,28 @@ export async function checkLiveUpdate(): Promise<LiveUpdateDecision | null> {
     return decision;
   } finally {
     checking = false;
+  }
+}
+
+/** What the manual "업데이트 확인" button tells the user. */
+export function describeLiveUpdate(decision: LiveUpdateDecision | null): string {
+  if (!decision) return '지금은 확인할 업데이트가 없어요.';
+  if (decision.action === 'download' || decision.action === 'stage') return '새 화면을 받았어요. 아래 버튼으로 적용하세요.';
+  switch (decision.reason) {
+    case 'current': return '최신 화면을 쓰고 있어요.';
+    case 'native-too-old': return '새 화면은 앱(APK)을 새로 설치해야 쓸 수 있어요.';
+    case 'failed-before': return '이 버전은 이전에 실행되지 않아 건너뛰었어요.';
+    case 'in-progress': return '새 화면을 받는 중이에요. 잠시 뒤 다시 확인해 주세요.';
+  }
+}
+
+/** Manual check from settings. Resolves to a message to show, never throws. */
+export async function checkLiveUpdateManually(): Promise<string> {
+  if (!getApiBaseUrl()) return '이 앱은 서버 주소 없이 빌드되어 화면 업데이트를 받을 수 없어요.';
+  try {
+    return describeLiveUpdate(await checkLiveUpdate());
+  } catch {
+    return '업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.';
   }
 }
 

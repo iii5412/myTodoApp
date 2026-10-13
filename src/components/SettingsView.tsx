@@ -1,6 +1,7 @@
 import { ChevronRight, ClipboardPaste, Copy, History, RefreshCw } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
-import { applyLiveUpdateNow, currentBundleVersion, liveUpdateReady } from '../lib/liveUpdate';
+import { applyLiveUpdateNow, checkLiveUpdateManually, currentBundleVersion, liveUpdateReady } from '../lib/liveUpdate';
+import { isNativeAndroid } from '../lib/platform';
 import { exportBackup, importBackup } from '../lib/storage';
 import type { AppData } from '../lib/todos';
 import { PageHeader } from './PageHeader';
@@ -25,8 +26,17 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 export function SettingsView({ data, onBack, onOpenHistory, onReplaceData }: Props) {
   const readyVersion = useSyncExternalStore(liveUpdateReady.subscribe, liveUpdateReady.get);
   const [message, setMessage] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState('');
+
+  async function checkUpdate() {
+    setChecking(true);
+    setUpdateMessage('');
+    setUpdateMessage(await checkLiveUpdateManually());
+    setChecking(false);
+  }
 
   async function copyBackup() {
     try {
@@ -107,6 +117,19 @@ export function SettingsView({ data, onBack, onOpenHistory, onReplaceData }: Pro
             <span className="text-muted">버전</span>
             <span className="font-semibold">{__APP_BUILD__.version} · {currentBundleVersion().slice(0, 7)}</span>
           </div>
+          {isNativeAndroid() && (
+            <>
+              <button
+                type="button"
+                onClick={() => void checkUpdate()}
+                disabled={checking}
+                className="mb-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sunken text-[15px] font-bold disabled:opacity-50"
+              >
+                <RefreshCw size={18} className={checking ? 'animate-spin' : ''} /> {checking ? '확인하는 중…' : '업데이트 확인'}
+              </button>
+              {updateMessage && <p role="status" className="m-0 mb-3 text-[13px] text-muted">{updateMessage}</p>}
+            </>
+          )}
           {readyVersion && (
             <button
               type="button"
