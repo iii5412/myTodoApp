@@ -8,7 +8,7 @@ interface Props {
   durationMs?: number;
 }
 
-/** Floats above the add bar. The action (e.g. 되돌리기) is a full-height tap target. */
+/** Floats above the footer. The action (e.g. 되돌리기) is a full-height tap target. */
 export function Toast({ message, actionLabel, onAction, onDone, durationMs = 4000 }: Props) {
   useEffect(() => {
     const timer = setTimeout(onDone, durationMs);
@@ -19,7 +19,7 @@ export function Toast({ message, actionLabel, onAction, onDone, durationMs = 400
     <div
       role="status"
       className="sheet-in pointer-events-auto absolute inset-x-4 z-20 flex h-14 items-center justify-between gap-3 rounded-2xl bg-ink pr-1.5 pl-5 text-[16px] font-semibold text-bg shadow-lg"
-      style={{ bottom: 'calc(var(--add-bar-h, 96px) + 12px)' }}
+      style={{ bottom: 'calc(var(--footer-h, 80px) + 12px)' }}
     >
       <span className="truncate">{message}</span>
       {actionLabel && onAction && (

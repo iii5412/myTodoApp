@@ -1,5 +1,5 @@
 import { App as CapacitorApp } from '@capacitor/app';
-import { CheckCheck, Settings } from 'lucide-react';
+import { CheckCheck, Plus, Settings } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AddBar } from './components/AddBar';
 import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
@@ -8,7 +8,7 @@ import { HistoryView } from './components/HistoryView';
 import { SettingsView } from './components/SettingsView';
 import { Toast } from './components/Toast';
 import { TodoList } from './components/TodoList';
-import { formatHeaderDate, startOfToday } from './lib/format';
+import { startOfToday } from './lib/format';
 import { isNativeAndroid } from './lib/platform';
 import { loadData, saveData } from './lib/storage';
 import {
@@ -29,11 +29,12 @@ export default function App() {
   const [data, setData] = useState<AppData>(loadData);
   const [view, setView] = useState<View>('home');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [today, setToday] = useState(() => new Date());
-  const addBarRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,33 +48,35 @@ export default function App() {
 
   const visibleTodos = useMemo(() => sortTodos(data.todos, today.getTime()), [data.todos, today]);
 
-  // Let the toast float just above the add bar, whatever its height (keyboard, color row).
+  // Let the toast float just above the footer, whatever its height (bottom inset).
   useLayoutEffect(() => {
-    const bar = addBarRef.current;
+    const footer = footerRef.current;
     const root = rootRef.current;
-    if (!bar || !root || view !== 'home') return;
-    const update = () => root.style.setProperty('--add-bar-h', `${bar.offsetHeight}px`);
+    if (!footer || !root || view !== 'home') return;
+    const update = () => root.style.setProperty('--footer-h', `${footer.offsetHeight}px`);
     update();
     const observer = new ResizeObserver(update);
-    observer.observe(bar);
+    observer.observe(footer);
     return () => observer.disconnect();
   }, [view]);
 
   // Android back button and the unlock launch both land here.
-  const stateRef = useRef({ view, editingId, pendingDelete });
-  stateRef.current = { view, editingId, pendingDelete };
+  const stateRef = useRef({ view, editingId, pendingDelete, adding });
+  stateRef.current = { view, editingId, pendingDelete, adding };
   useEffect(() => {
     const goHome = () => {
       setView('home');
       setEditingId(null);
+      setAdding(false);
       setPendingDelete(null);
       setToday(new Date());
     };
     window.addEventListener('mytodoUnlock', goHome);
     const back = isNativeAndroid()
       ? CapacitorApp.addListener('backButton', () => {
-          const { view: current, editingId: editing, pendingDelete: deleting } = stateRef.current;
+          const { view: current, editingId: editing, pendingDelete: deleting, adding: addingNow } = stateRef.current;
           if (deleting) setPendingDelete(null);
+          else if (addingNow) setAdding(false);
           else if (editing) setEditingId(null);
           else if (current === 'history') setView('settings');
           else if (current === 'settings') setView('home');
@@ -154,7 +157,6 @@ export default function App() {
 
   const editing = editingId ? data.todos.find(todo => todo.id === editingId) : undefined;
   const remaining = data.todos.length;
-  const total = doneToday + remaining;
 
   let content: ReactNode;
   if (view === 'settings') {
@@ -181,43 +183,23 @@ export default function App() {
   } else {
     content = (
       <div ref={rootRef} className="relative mx-auto flex h-full max-w-xl flex-col">
-        <header className="shrink-0 px-5 pb-3" style={{ paddingTop: 'calc(var(--safe-top) + 20px)' }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="m-0 text-[28px] leading-tight font-extrabold tracking-tight">{formatHeaderDate(today)}</h1>
-            </div>
-            <button
-              type="button"
-              onClick={() => setView('settings')}
-              aria-label="설정"
-              className="-mr-2 grid size-12 place-items-center rounded-full text-muted active:bg-sunken"
-            >
-              <Settings size={26} />
-            </button>
-          </div>
-
-          {total > 0 && (
-            <div className="mt-4">
-              <div className="flex items-baseline justify-between text-[14px] font-semibold">
-                <span>
-                  <span className="text-[22px] font-extrabold text-accent">{remaining}</span>
-                  <span className="ml-1 text-muted">개 남음</span>
-                </span>
-                <span className="text-muted">오늘 {doneToday}개 완료</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneToday}>
-                <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${(doneToday / total) * 100}%` }} />
-              </div>
-            </div>
-          )}
-        </header>
+        <div className="flex shrink-0 justify-end px-3" style={{ paddingTop: 'var(--safe-top)' }}>
+          <button
+            type="button"
+            onClick={() => setView('settings')}
+            aria-label="설정"
+            className="grid size-12 place-items-center rounded-full text-muted active:bg-sunken"
+          >
+            <Settings size={26} />
+          </button>
+        </div>
 
         <main className="flex-1 overflow-y-auto px-4 pt-1 pb-6">
           {remaining === 0 ? (
             <div className="mt-20 flex flex-col items-center gap-3 text-center text-muted">
               <CheckCheck size={52} strokeWidth={1.5} className={doneToday > 0 ? 'text-tag-green' : ''} />
               <p className="m-0 text-[19px] font-bold text-ink">{doneToday > 0 ? '할 일을 모두 끝냈어요' : '할 일이 없어요'}</p>
-              <p className="m-0 text-[15px]">아래에서 새 할 일을 추가해 보세요</p>
+              <p className="m-0 text-[15px]">아래 추가 버튼으로 새 할 일을 추가해 보세요</p>
             </div>
           ) : (
             <TodoList
@@ -240,9 +222,22 @@ export default function App() {
           />
         )}
 
-        <div ref={addBarRef} className="shrink-0">
-          <AddBar onAdd={add} />
-        </div>
+        <footer
+          ref={footerRef}
+          className="flex shrink-0 justify-end border-t border-line bg-bg px-4 pt-3"
+          style={{ paddingBottom: 'calc(var(--safe-bottom) + 12px)' }}
+        >
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex h-14 items-center gap-2 rounded-2xl bg-accent pr-6 pl-5 text-[18px] font-bold text-accent-ink active:opacity-80"
+          >
+            <Plus size={26} strokeWidth={2.6} />
+            할 일 추가
+          </button>
+        </footer>
+
+        {adding && <AddBar onAdd={add} onClose={() => setAdding(false)} />}
 
         {editing && (
           <EditSheet

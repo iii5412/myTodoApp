@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayLabel, formatHeaderDate, formatTime, formatSchedule, fromDateTimeInput, toDateTimeInput } from './format';
+import { formatDayLabel, formatTime, formatSchedule, fromDateTimeInput, toDateTimeInput } from './format';
 
 describe('format', () => {
   const now = new Date(2026, 9, 12, 20, 0); // 2026-10-12 (Monday)
-
-  it('formats the header date in Korean', () => {
-    expect(formatHeaderDate(now)).toBe('10월 12일 월요일');
-  });
 
   it('labels today, yesterday and older days', () => {
     expect(formatDayLabel('2026-10-12', now)).toBe('오늘');

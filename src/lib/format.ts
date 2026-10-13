@@ -1,9 +1,5 @@
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export function formatHeaderDate(now = new Date()): string {
-  return `${now.getMonth() + 1}월 ${now.getDate()}일 ${WEEKDAYS[now.getDay()]}요일`;
-}
-
 export function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
   const hour = date.getHours();

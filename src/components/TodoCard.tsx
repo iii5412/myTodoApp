@@ -6,6 +6,7 @@ import { classifyGesture, deleteDistance, shouldDelete, type Gesture } from '../
 import type { Todo } from '../lib/todos';
 import { COLOR_VAR } from './colors';
 import { formatSchedule } from '../lib/format';
+import { FitText } from './FitText';
 
 interface Props {
   todo: Todo;
@@ -140,11 +141,11 @@ export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Pro
         <button
           type="button"
           onClick={() => onEdit(todo.id)}
-          className={`min-h-11 min-w-0 flex-1 py-2 text-left text-[19px] leading-snug font-semibold break-words ${completing ? 'text-muted line-through' : ''}`}
+          className="min-h-11 min-w-0 flex-1 py-2 text-left leading-snug font-semibold"
         >
-          <span className="block">{todo.text}</span>
+          <FitText text={todo.text} max={19} min={12} className={completing ? 'text-muted line-through' : ''} />
           {todo.dueAt !== undefined && (
-            <span className="mt-1 block text-[13px] font-medium text-muted">{formatSchedule(todo.dueAt)}</span>
+            <span className="mt-1 block truncate text-[13px] font-medium text-muted">{formatSchedule(todo.dueAt)}</span>
           )}
         </button>
 
