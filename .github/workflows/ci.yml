@@ -62,14 +62,19 @@ jobs:
           DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
-            mkdir -p ~/.android
-            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > android/ci-debug.keystore
+            # Public certificate fingerprint only; confirms the secret decoded into a usable key.
+            keytool -list -v -keystore android/ci-debug.keystore -storepass android | grep -E "Alias name|SHA256"
           else
             echo "::warning::DEBUG_KEYSTORE_BASE64 is not set; the debug APK gets a throwaway signing key."
           fi
       - name: Compile debug APK
         working-directory: android
         run: bash gradlew assembleDebug --no-daemon
+      - name: Show APK signing certificate
+        run: |
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | grep "SHA-256" || true
       - uses: actions/upload-artifact@v4
         with:
           name: mytodo-debug-apk

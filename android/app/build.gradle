@@ -3,6 +3,7 @@ apply plugin: 'com.android.application'
 // Release signing reads android/keystore.properties (not in Git). Without it only debug builds are possible.
 def keystorePropertiesFile = rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
+def ciDebugKeystore = rootProject.file('ci-debug.keystore')
 def hasReleaseSigning = keystorePropertiesFile.exists()
 if (hasReleaseSigning) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
@@ -25,6 +26,16 @@ android {
         }
     }
     signingConfigs {
+        // CI writes the shared debug key here (see .github/workflows/ci.yml) so every debug APK
+        // is signed alike and installs over the previous one. Without the file Gradle's own debug key is used.
+        if (ciDebugKeystore.exists()) {
+            debug {
+                storeFile ciDebugKeystore
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
         if (hasReleaseSigning) {
             release {
                 storeFile rootProject.file(keystoreProperties['storeFile'])
