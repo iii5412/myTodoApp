@@ -25,7 +25,7 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 개발용 서명은 PC마다 다르다. 다른 PC에서 만든 APK는 기존 설치 위에 덮어쓸 수 없으니, 오래 쓸 APK는 아래 릴리스 서명을 쓴다.
 
-GitHub의 **Actions > CI > 성공한 실행 > Artifacts > mytodo-debug-apk**에서도 검증된 개발용 APK를 내려받을 수 있다(7일 보관). CI의 개발용 서명도 실행마다 달라질 수 있다. 기존 앱과 서명이 다르면 업데이트 설치가 안 되므로 기존 서명으로 릴리스를 빌드한다. 앱을 삭제하면 로컬 데이터가 지워지므로 삭제하기 전에 설정에서 백업을 내보낸다.
+GitHub의 **Actions > CI > 성공한 실행 > Artifacts > mytodo-debug-apk**에서도 검증된 개발용 APK를 내려받을 수 있다(7일 보관). 저장소 Secret `DEBUG_KEYSTORE_BASE64`(개발용 `debug.keystore`를 base64로 인코딩한 값, 비밀번호는 기본값)가 있으면 CI는 항상 그 키로 서명하므로, 같은 키로 만든 APK끼리 덮어쓰기 설치가 된다. Secret이 없으면(포크 PR 등) 실행마다 새 키가 만들어져 기존 앱 위에 설치되지 않는다. 기존 앱과 서명이 다르면 업데이트 설치가 안 되므로 같은 키로 빌드한다. 앱을 삭제하면 로컬 데이터가 지워지므로 삭제하기 전에 설정에서 백업을 내보낸다.
 
 ## 업데이트 가능한 릴리스 APK
 
