@@ -39,6 +39,20 @@ export function createLiveUpdateRouter({ dir = path.join(process.cwd(), 'live-up
   const router = express.Router();
   let cached: LiveBundleManifest | null | undefined;
 
+  // The installed Android WebView fetches these public files from https://localhost.
+  // Without CORS the server answers successfully, but fetch cannot read the response.
+  router.use(['/live-update', '/live-update/:file'], (req, res, next) => {
+    res.vary('Origin');
+    if (req.get('Origin') === 'https://localhost') {
+      res.setHeader('Access-Control-Allow-Origin', 'https://localhost');
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD');
+        return res.sendStatus(204);
+      }
+    }
+    next();
+  });
+
   async function loadManifest(): Promise<LiveBundleManifest | null> {
     // The image is immutable, so the first successful read is final.
     if (cached !== undefined) return cached;

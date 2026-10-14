@@ -46,6 +46,45 @@ describe('live update manifest file', () => {
 });
 
 describe('live update routes', () => {
+  it('lets the Android WebView read the manifest and download the bundle', async () => {
+    await writeFile(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
+    await writeFile(path.join(dir, `${manifest.version}.zip`), 'zip-bytes');
+    const url = await start();
+
+    for (const route of ['/api/live-update', `/api/live-update/${manifest.version}.zip`]) {
+      const response = await fetch(url(route), { headers: { Origin: 'https://localhost' } });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('access-control-allow-origin')).toBe('https://localhost');
+      expect(response.headers.get('vary')).toContain('Origin');
+      await response.text();
+    }
+
+    const preflight = await fetch(url('/api/live-update'), {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://localhost', 'Access-Control-Request-Method': 'GET' },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://localhost');
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
+  });
+
+  it('keeps empty and missing bundle responses readable by Android', async () => {
+    const url = await start();
+    for (const [route, status] of [['/api/live-update', 204], ['/api/live-update/missing.zip', 404]] as const) {
+      const response = await fetch(url(route), { headers: { Origin: 'https://localhost' } });
+      expect(response.status).toBe(status);
+      expect(response.headers.get('access-control-allow-origin')).toBe('https://localhost');
+      await response.text();
+    }
+  });
+
+  it('does not grant other websites cross-origin access', async () => {
+    const url = await start();
+    const response = await fetch(url('/api/live-update'), { headers: { Origin: 'https://example.com' } });
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(response.headers.get('vary')).toContain('Origin');
+  });
+
   it('answers 204 when the image carries no bundle', async () => {
     const url = await start();
     const response = await fetch(url('/api/live-update'));
