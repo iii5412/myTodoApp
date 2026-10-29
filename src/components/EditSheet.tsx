@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { Copy, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Todo, TodoColor } from '../lib/todos';
 import { ColorPicker } from './ColorPicker';
@@ -20,6 +20,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   const [schedule, setSchedule] = useState(() => toDateTimeInput(todo.dueAt));
   const [manualSchedule, setManualSchedule] = useState(false);
   const [autoScheduleChanged, setAutoScheduleChanged] = useState(false);
+  const [copyMessage, setCopyMessage] = useState('');
   const scheduleReference = useRef(new Date());
   const area = useRef<HTMLTextAreaElement>(null);
 
@@ -33,6 +34,24 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   function save() {
     onSave(todo.id, { text, color: color ?? null, dueAt: fromDateTimeInput(schedule) ?? null });
     onClose();
+  }
+
+  async function copyText() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const el = area.current;
+        if (!el) throw new Error('Textarea unavailable');
+        el.focus();
+        el.select();
+        if (!document.execCommand('copy')) throw new Error('Copy failed');
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+      setCopyMessage('복사했어요');
+    } catch {
+      setCopyMessage('복사하지 못했어요. 내용을 길게 눌러 복사해 주세요');
+    }
   }
 
   return (
@@ -49,6 +68,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
           value={text}
           onChange={event => {
             const nextText = event.target.value;
+            setCopyMessage('');
             if (!manualSchedule) {
               const nextSchedule = toDateTimeInput(inferEditedSchedule(text, nextText, fromDateTimeInput(schedule), scheduleReference.current));
               if (nextSchedule !== schedule) {
@@ -63,6 +83,13 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
           aria-label="할 일 내용"
           className="w-full resize-none rounded-2xl border border-line bg-bg p-4 text-[19px] leading-snug font-semibold outline-none focus:border-accent"
         />
+
+        <div className="mt-2 flex items-center gap-3">
+          <button type="button" onClick={copyText} disabled={!text} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-[15px] font-bold text-accent disabled:opacity-35">
+            <Copy size={18} /> 복사하기
+          </button>
+          <span role="status" className="text-[13px] text-muted">{copyMessage}</span>
+        </div>
 
         <div className="mt-4 overflow-x-auto">
           <ColorPicker value={color} onChange={setColor} />

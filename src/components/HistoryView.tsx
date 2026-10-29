@@ -55,7 +55,7 @@ export function HistoryView({ history, onBack, onRestore, onDelete, onClear }: P
                       aria-hidden
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="m-0 text-[17px] leading-snug break-words text-muted line-through decoration-muted/50">{item.text}</p>
+                      <p className="m-0 line-clamp-3 text-[17px] leading-snug break-all whitespace-pre-wrap text-muted line-through decoration-muted/50">{item.text}</p>
                       <p className="m-0 mt-0.5 text-[13px] text-muted">{formatTime(item.completedAt ?? item.createdAt)} 완료</p>
                     </div>
                     <button
