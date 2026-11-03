@@ -63,6 +63,55 @@ describe('todos', () => {
     expect(data.history[0].completedAt).toBe(20);
   });
 
+  it('creates one next-day occurrence with the same local scheduled time and preserves it in backups', () => {
+    const now = new Date(2026, 9, 31, 23, 45).getTime();
+    const due = new Date(2026, 9, 31, 9, 30).getTime();
+    let data = addTodo(emptyData(), '매일 할 일', now, 'blue', due, true);
+    const id = data.todos[0].id;
+    data = completeTodo(data, id, now);
+    expect(data.history[0]).toMatchObject({ id, completedAt: now, repeatDaily: true });
+    expect(data.todos).toHaveLength(1);
+    expect(data.todos[0]).toMatchObject({ text: '매일 할 일', color: 'blue', repeatDaily: true, availableAt: new Date(2026, 10, 1).getTime(), dueAt: new Date(2026, 10, 1, 9, 30).getTime() });
+    expect(data.history[0].nextTodoId).toBe(data.todos[0].id);
+    expect(parseAppData(JSON.parse(JSON.stringify(data)))).toEqual(data);
+    expect(completeTodo(data, id, now)).toBe(data);
+  });
+
+  it('undoes a recurring completion without duplicating the next occurrence', () => {
+    let data = addTodo(emptyData(), '반복', 1, undefined, undefined, true);
+    const id = data.todos[0].id;
+    data = completeTodo(data, id, 100);
+    data = restoreTodo(data, id, undefined, true);
+    expect(data.todos).toHaveLength(1);
+    expect(data.todos[0]).toMatchObject({ id, repeatDaily: true });
+    expect(data.todos[0].availableAt).toBeUndefined();
+    expect(data.history).toHaveLength(0);
+    data = editTodo(data, id, { repeatDaily: false });
+    expect(completeTodo(data, id, 200).todos).toHaveLength(0);
+  });
+
+  it('restores history as a separate task while retaining its next occurrence', () => {
+    let data = addTodo(emptyData(), '반복', 1, undefined, undefined, true);
+    const id = data.todos[0].id;
+    data = completeTodo(data, id, 100);
+    const successorId = data.todos[0].id;
+    data = editTodo(data, successorId, { text: '수정한 반복' });
+    data = restoreTodo(data, id);
+    expect(data.todos.find(todo => todo.id === successorId)).toMatchObject({ text: '수정한 반복', repeatDaily: true });
+    expect(data.todos.find(todo => todo.id === id)?.repeatDaily).toBeUndefined();
+  });
+
+  it('restores an older occurrence without creating another recurring series', () => {
+    let data = addTodo(emptyData(), '반복', 1, undefined, undefined, true);
+    const first = data.todos[0].id;
+    data = completeTodo(data, first, 100);
+    data = completeTodo(data, data.todos[0].id, 200);
+    data = restoreTodo(data, first);
+    expect(data.todos).toHaveLength(2);
+    expect(data.todos.find(todo => todo.id === first)?.repeatDaily).toBeUndefined();
+    expect(data.todos.filter(todo => todo.repeatDaily)).toHaveLength(1);
+  });
+
   it('restores a completed task without its completion time', () => {
     let data = withTodos('a', 'b');
     const id = data.todos[0].id;

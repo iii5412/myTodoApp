@@ -7,6 +7,10 @@ export interface Todo {
   color?: TodoColor;
   /** Optional scheduled date and time, stored as an absolute timestamp. */
   dueAt?: number;
+  repeatDaily?: boolean;
+  /** Next occurrence becomes visible at the start of this local day. */
+  availableAt?: number;
+  nextTodoId?: string;
   createdAt: number;
   completedAt?: number;
 }
@@ -26,14 +30,14 @@ export function newId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function addTodo(data: AppData, text: string, now = Date.now(), color?: TodoColor, dueAt?: number): AppData {
+export function addTodo(data: AppData, text: string, now = Date.now(), color?: TodoColor, dueAt?: number, repeatDaily = false): AppData {
   const clean = text.trim();
   if (!clean) return data;
-  const todo: Todo = { id: newId(), text: clean, createdAt: now, ...(color ? { color } : {}), ...(validDueAt(dueAt) ? { dueAt } : {}) };
+  const todo: Todo = { id: newId(), text: clean, createdAt: now, ...(color ? { color } : {}), ...(validDueAt(dueAt) ? { dueAt } : {}), ...(repeatDaily ? { repeatDaily: true } : {}) };
   return { ...data, todos: [todo, ...data.todos] };
 }
 
-export function editTodo(data: AppData, id: string, patch: { text?: string; color?: TodoColor | null; dueAt?: number | null }): AppData {
+export function editTodo(data: AppData, id: string, patch: { text?: string; color?: TodoColor | null; dueAt?: number | null; repeatDaily?: boolean }): AppData {
   return {
     ...data,
     todos: data.todos.map(todo => {
@@ -44,6 +48,10 @@ export function editTodo(data: AppData, id: string, patch: { text?: string; colo
       else if (patch.color) next.color = patch.color;
       if (patch.dueAt === null) delete next.dueAt;
       else if (validDueAt(patch.dueAt)) next.dueAt = patch.dueAt;
+      if (patch.repeatDaily !== undefined) {
+        if (patch.repeatDaily) next.repeatDaily = true;
+        else delete next.repeatDaily;
+      }
       return next;
     }),
   };
@@ -68,20 +76,35 @@ export function sortTodos(todos: Todo[], now = Date.now()): Todo[] {
 export function completeTodo(data: AppData, id: string, now = Date.now()): AppData {
   const target = data.todos.find(todo => todo.id === id);
   if (!target) return data;
-  const done: Todo = { ...target, completedAt: now };
+  let next: Todo | undefined;
+  if (target.repeatDaily) {
+    const tomorrow = new Date(now);
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    next = { ...target, id: newId(), createdAt: now, availableAt: tomorrow.getTime() };
+    if (validDueAt(target.dueAt)) {
+      const due = new Date(target.dueAt);
+      due.setFullYear(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
+      next.dueAt = due.getTime();
+    }
+  }
+  const done: Todo = { ...target, completedAt: now, ...(next ? { nextTodoId: next.id } : {}) };
   return {
     ...data,
-    todos: data.todos.filter(todo => todo.id !== id),
+    todos: data.todos.flatMap(todo => todo.id === id ? (next ? [next] : []) : [todo]),
     history: [done, ...data.history].slice(0, HISTORY_LIMIT),
   };
 }
 
 /** Puts a completed task back on the list at `index` (default: the end). */
-export function restoreTodo(data: AppData, id: string, index = data.todos.length): AppData {
+export function restoreTodo(data: AppData, id: string, index = data.todos.length, undoCompletion = false): AppData {
   const target = data.history.find(todo => todo.id === id);
   if (!target) return data;
-  const { completedAt: _completedAt, ...open } = target;
-  const todos = [...data.todos];
+  const { completedAt: _completedAt, nextTodoId, availableAt: _availableAt, ...open } = target;
+  const successor = nextTodoId && data.todos.find(todo => todo.id === nextTodoId);
+  // Restoring an older occurrence must not start a second repeating series.
+  if (nextTodoId && (!successor || !undoCompletion)) delete open.repeatDaily;
+  const todos = undoCompletion && successor ? data.todos.filter(todo => todo.id !== nextTodoId) : [...data.todos];
   todos.splice(Math.max(0, Math.min(index, todos.length)), 0, open);
   return { ...data, todos, history: data.history.filter(todo => todo.id !== id) };
 }
@@ -128,6 +151,9 @@ function parseTodo(value: unknown): Todo | null {
   };
   if (COLORS.includes(input.color as TodoColor)) todo.color = input.color as TodoColor;
   if (validDueAt(input.dueAt)) todo.dueAt = input.dueAt;
+  if (input.repeatDaily === true) todo.repeatDaily = true;
+  if (validDueAt(input.availableAt)) todo.availableAt = input.availableAt;
+  if (typeof input.nextTodoId === 'string' && input.nextTodoId) todo.nextTodoId = input.nextTodoId;
   const completedAt = Number(input.completedAt);
   if (input.completedAt !== undefined && Number.isFinite(completedAt)) todo.completedAt = completedAt;
   return todo;

@@ -46,7 +46,7 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const visibleTodos = useMemo(() => sortTodos(data.todos, today.getTime()), [data.todos, today]);
+  const visibleTodos = useMemo(() => sortTodos(data.todos.filter(todo => todo.availableAt === undefined || todo.availableAt <= today.getTime()), today.getTime()), [data.todos, today]);
 
   // Let the toast float just above the footer, whatever its height (bottom inset).
   useLayoutEffect(() => {
@@ -99,8 +99,8 @@ export default function App() {
     return data.history.filter(item => (item.completedAt ?? 0) >= start).length;
   }, [data.history, today]);
 
-  const add = useCallback((text: string, color: TodoColor | undefined, dueAt?: number) => {
-    setData(current => addTodo(current, text, Date.now(), color, dueAt));
+  const add = useCallback((text: string, color: TodoColor | undefined, dueAt: number | undefined, repeatDaily: boolean) => {
+    setData(current => addTodo(current, text, Date.now(), color, dueAt, repeatDaily));
     setToday(new Date());
   }, []);
 
@@ -114,7 +114,7 @@ export default function App() {
       window.setTimeout(() => {
         setData(current => completeTodo(current, id));
         setCompletingId(null);
-        setToast({ message: '완료했어요', undo: () => setData(current => restoreTodo(current, id, index)) });
+        setToast({ message: '완료했어요', undo: () => setData(current => restoreTodo(current, id, index, true)) });
       }, COMPLETE_ANIMATION_MS);
     },
     [completingId, data.todos],
@@ -156,7 +156,7 @@ export default function App() {
   }
 
   const editing = editingId ? data.todos.find(todo => todo.id === editingId) : undefined;
-  const remaining = data.todos.length;
+  const remaining = visibleTodos.length;
 
   let content: ReactNode;
   if (view === 'settings') {

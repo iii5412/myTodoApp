@@ -148,6 +148,7 @@ export function TodoCard({ todo, completing, onComplete, onEdit, onDelete }: Pro
           {todo.dueAt !== undefined && (
             <span className="mt-1 block truncate text-[13px] font-medium text-muted">{formatSchedule(todo.dueAt)}</span>
           )}
+          {todo.repeatDaily && <span className="mt-1 block text-[13px] font-medium text-muted">매일 반복</span>}
         </button>
 
         <span className="grid size-11 shrink-0 place-items-center text-muted/70" aria-hidden>

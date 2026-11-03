@@ -7,7 +7,7 @@ import { ColorPicker } from './ColorPicker';
 import { ScheduleField } from './ScheduleField';
 
 interface Props {
-  onAdd: (text: string, color: TodoColor | undefined, dueAt?: number) => void;
+  onAdd: (text: string, color: TodoColor | undefined, dueAt: number | undefined, repeatDaily: boolean) => void;
   onClose: () => void;
 }
 
@@ -17,6 +17,7 @@ export function AddBar({ onAdd, onClose }: Props) {
   const [color, setColor] = useState<TodoColor | undefined>();
   const [schedule, setSchedule] = useState('');
   const [manualSchedule, setManualSchedule] = useState(false);
+  const [repeatDaily, setRepeatDaily] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const canSubmit = text.trim().length > 0;
 
@@ -26,10 +27,11 @@ export function AddBar({ onAdd, onClose }: Props) {
 
   function submit() {
     if (!canSubmit) return;
-    onAdd(text, color, fromDateTimeInput(schedule));
+    onAdd(text, color, fromDateTimeInput(schedule), repeatDaily);
     setText('');
     setSchedule('');
     setManualSchedule(false);
+    setRepeatDaily(false);
     // Keep the keyboard up for the next one.
     inputRef.current?.focus();
   }
@@ -56,6 +58,10 @@ export function AddBar({ onAdd, onClose }: Props) {
             자동 설정 · {formatSchedule(fromDateTimeInput(schedule)!)} · 위에서 수정 가능
           </p>
         )}
+        <label className="mb-2 flex min-h-11 items-center gap-3 text-[16px] font-semibold">
+          <input type="checkbox" checked={repeatDaily} onChange={event => setRepeatDaily(event.target.checked)} className="size-5 accent-accent" />
+          매일 반복 <span className="text-[13px] font-normal text-muted">완료하면 다음 날 다시 표시</span>
+        </label>
         <div
           className="mb-3 overflow-x-auto"
           // Keep the input focused (and the keyboard open) when a color is tapped.

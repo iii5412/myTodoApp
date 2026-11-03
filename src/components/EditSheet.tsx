@@ -8,7 +8,7 @@ import { inferEditedSchedule } from '../lib/schedule';
 
 interface Props {
   todo: Todo;
-  onSave: (id: string, patch: { text: string; color: TodoColor | null; dueAt: number | null }) => void;
+  onSave: (id: string, patch: { text: string; color: TodoColor | null; dueAt: number | null; repeatDaily: boolean }) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }
@@ -19,6 +19,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   const [color, setColor] = useState<TodoColor | undefined>(todo.color);
   const [schedule, setSchedule] = useState(() => toDateTimeInput(todo.dueAt));
   const [manualSchedule, setManualSchedule] = useState(false);
+  const [repeatDaily, setRepeatDaily] = useState(todo.repeatDaily === true);
   const [autoScheduleChanged, setAutoScheduleChanged] = useState(false);
   const [copyMessage, setCopyMessage] = useState('');
   const scheduleReference = useRef(new Date());
@@ -32,7 +33,7 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
   }, []);
 
   function save() {
-    onSave(todo.id, { text, color: color ?? null, dueAt: fromDateTimeInput(schedule) ?? null });
+    onSave(todo.id, { text, color: color ?? null, dueAt: fromDateTimeInput(schedule) ?? null, repeatDaily });
     onClose();
   }
 
@@ -107,6 +108,11 @@ export function EditSheet({ todo, onSave, onDelete, onClose }: Props) {
             </p>
           )}
         </div>
+
+        <label className="mt-2 flex min-h-11 items-center gap-3 text-[16px] font-semibold">
+          <input type="checkbox" checked={repeatDaily} onChange={event => setRepeatDaily(event.target.checked)} className="size-5 accent-accent" />
+          매일 반복 <span className="text-[13px] font-normal text-muted">완료하면 다음 날 다시 표시</span>
+        </label>
 
         <div className="mt-5 flex gap-3">
           <button
