@@ -12,7 +12,7 @@ import { startOfToday } from './lib/format';
 import { isNativeAndroid } from './lib/platform';
 import { loadData, saveData } from './lib/storage';
 import {
-  addTodo, addMedicationTodos, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, moveTodo, restoreTodo, sortTodos,
+  addTodo, addMedicationTodos, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, isTodoVisible, moveTodo, restoreTodo, sortTodos,
   type AppData, type MedicationTime, type TodoColor,
 } from './lib/todos';
 
@@ -46,7 +46,7 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const visibleTodos = useMemo(() => sortTodos(data.todos.filter(todo => todo.availableAt === undefined || todo.availableAt <= today.getTime()), today.getTime()), [data.todos, today]);
+  const visibleTodos = useMemo(() => sortTodos(data.todos.filter(todo => isTodoVisible(todo, today.getTime())), today.getTime()), [data.todos, today]);
 
   // Let the toast float just above the footer, whatever its height (bottom inset).
   useLayoutEffect(() => {

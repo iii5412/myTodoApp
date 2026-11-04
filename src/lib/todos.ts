@@ -2,6 +2,7 @@ export const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as 
 export type TodoColor = (typeof COLORS)[number];
 export const MEDICATION_TIMES = ['아침', '점심', '저녁'] as const;
 export type MedicationTime = (typeof MEDICATION_TIMES)[number];
+const MEDICATION_HOURS: Record<MedicationTime, number> = { 아침: 7, 점심: 12, 저녁: 18 };
 
 export interface Todo {
   id: string;
@@ -74,6 +75,15 @@ export function editTodo(data: AppData, id: string, patch: { text?: string; colo
 
 function validDueAt(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Number.isFinite(new Date(value).getTime());
+}
+
+/** Daily doses represent today's dose, so missed doses do not accumulate across days. */
+export function isTodoVisible(todo: Todo, now = Date.now()): boolean {
+  if (todo.availableAt !== undefined && todo.availableAt > now) return false;
+  if (!todo.medicationTime) return true;
+  const day = new Date(todo.repeatDaily ? now : todo.createdAt);
+  day.setHours(MEDICATION_HOURS[todo.medicationTime], 0, 0, 0);
+  return now >= day.getTime();
 }
 
 /** Scheduled tasks first, then recurring and medication tasks; preserve manual order within groups. */

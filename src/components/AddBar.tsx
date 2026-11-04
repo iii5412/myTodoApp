@@ -74,6 +74,8 @@ export function AddBar({ onAdd, onClose }: Props) {
               </label>
             ))}
           </div>
+          <p className="m-0 mt-1 text-[13px] text-muted">아침 7시 · 점심 12시 · 저녁 6시부터 표시</p>
+          {repeatDaily && medicationTimes.length > 0 && <p className="m-0 text-[13px] text-muted">매일 새로 표시하며, 전날 못 한 복용은 쌓이지 않아요</p>}
         </fieldset>
         <div
           className="mb-3 overflow-x-auto"

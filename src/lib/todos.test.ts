@@ -1,10 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import {
   addTodo, addMedicationTodos, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, emptyData,
-  groupByDay, insertTodo, moveTodo, parseAppData, restoreTodo, sortTodos,
+  groupByDay, insertTodo, isTodoVisible, moveTodo, parseAppData, restoreTodo, sortTodos,
 } from './todos';
 
 describe('medication doses', () => {
+  it('reveals doses at their local times and resets missed daily doses without accumulating them', () => {
+    const day = (date: number, hour: number, minute = 0) => new Date(2026, 10, date, hour, minute).getTime();
+    let data = addMedicationTodos(emptyData(), '약', ['아침', '점심', '저녁'], day(3, 6), undefined, undefined, true);
+    const visible = (now: number) => data.todos.filter(todo => isTodoVisible(todo, now)).map(todo => todo.medicationTime);
+    expect(visible(day(3, 6, 59))).toEqual([]);
+    expect(visible(day(3, 7))).toEqual(['아침']);
+    expect(visible(day(3, 12))).toEqual(['아침', '점심']);
+    expect(visible(day(3, 18))).toEqual(['아침', '점심', '저녁']);
+    expect(visible(day(6, 7))).toEqual(['아침']);
+    expect(visible(day(6, 18))).toEqual(['아침', '점심', '저녁']);
+    data = completeTodo(data, data.todos[0].id, day(6, 8));
+    expect(visible(day(6, 12))).toEqual(['점심']);
+    expect(visible(day(7, 7))).toEqual(['아침']);
+    expect(parseAppData(JSON.parse(JSON.stringify(data)))?.history).toEqual(data.history);
+  });
+
+  it('keeps a one-time missed dose visible on later days', () => {
+    const start = new Date(2026, 10, 3, 6).getTime();
+    const todo = addMedicationTodos(emptyData(), '약', ['저녁'], start).todos[0];
+    expect(isTodoVisible(todo, new Date(2026, 10, 3, 17, 59).getTime())).toBe(false);
+    expect(isTodoVisible(todo, new Date(2026, 10, 4, 7).getTime())).toBe(true);
+  });
   it('prioritizes scheduled, recurring and medication tasks over ordinary tasks', () => {
     let data = addTodo(emptyData(), '일반', 1);
     data = addMedicationTodos(data, '약', ['저녁'], 2);
