@@ -1,13 +1,13 @@
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { TodoColor } from '../lib/todos';
+import { MEDICATION_TIMES, type MedicationTime, type TodoColor } from '../lib/todos';
 import { formatSchedule, fromDateTimeInput, toDateTimeInput } from '../lib/format';
 import { inferSchedule } from '../lib/schedule';
 import { ColorPicker } from './ColorPicker';
 import { ScheduleField } from './ScheduleField';
 
 interface Props {
-  onAdd: (text: string, color: TodoColor | undefined, dueAt: number | undefined, repeatDaily: boolean) => void;
+  onAdd: (text: string, color: TodoColor | undefined, dueAt: number | undefined, repeatDaily: boolean, medicationTimes: MedicationTime[]) => void;
   onClose: () => void;
 }
 
@@ -18,6 +18,7 @@ export function AddBar({ onAdd, onClose }: Props) {
   const [schedule, setSchedule] = useState('');
   const [manualSchedule, setManualSchedule] = useState(false);
   const [repeatDaily, setRepeatDaily] = useState(false);
+  const [medicationTimes, setMedicationTimes] = useState<MedicationTime[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const canSubmit = text.trim().length > 0;
 
@@ -27,11 +28,12 @@ export function AddBar({ onAdd, onClose }: Props) {
 
   function submit() {
     if (!canSubmit) return;
-    onAdd(text, color, fromDateTimeInput(schedule), repeatDaily);
+    onAdd(text, color, fromDateTimeInput(schedule), repeatDaily, medicationTimes);
     setText('');
     setSchedule('');
     setManualSchedule(false);
     setRepeatDaily(false);
+    setMedicationTimes([]);
     // Keep the keyboard up for the next one.
     inputRef.current?.focus();
   }
@@ -46,7 +48,7 @@ export function AddBar({ onAdd, onClose }: Props) {
           event.preventDefault();
           submit();
         }}
-        className="sheet-in w-full rounded-t-3xl bg-surface px-4 pt-3"
+        className="sheet-in max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-surface px-4 pt-3"
         style={{ paddingBottom: 'calc(var(--safe-bottom) + 16px)' }}
       >
         <ScheduleField id="add-schedule" value={schedule} onChange={value => {
@@ -62,6 +64,17 @@ export function AddBar({ onAdd, onClose }: Props) {
           <input type="checkbox" checked={repeatDaily} onChange={event => setRepeatDaily(event.target.checked)} className="size-5 accent-accent" />
           매일 반복 <span className="text-[13px] font-normal text-muted">완료하면 다음 날 다시 표시</span>
         </label>
+        <fieldset className="m-0 mb-3 border-0 p-0">
+          <legend className="text-[16px] font-semibold">약 복용 시간 <span className="text-[13px] font-normal text-muted">선택 사항 · 시간별로 따로 완료</span></legend>
+          <div className="mt-1 flex gap-2">
+            {MEDICATION_TIMES.map(time => (
+              <label key={time} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line bg-bg text-[16px] font-semibold">
+                <input type="checkbox" checked={medicationTimes.includes(time)} onChange={event => setMedicationTimes(current => event.target.checked ? [...current, time] : current.filter(item => item !== time))} className="size-5 accent-accent" />
+                {time}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <div
           className="mb-3 overflow-x-auto"
           // Keep the input focused (and the keyboard open) when a color is tapped.

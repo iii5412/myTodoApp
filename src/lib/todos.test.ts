@@ -1,8 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, emptyData,
+  addTodo, addMedicationTodos, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, emptyData,
   groupByDay, insertTodo, moveTodo, parseAppData, restoreTodo, sortTodos,
 } from './todos';
+
+describe('medication doses', () => {
+  it('prioritizes scheduled, recurring and medication tasks over ordinary tasks', () => {
+    let data = addTodo(emptyData(), '일반', 1);
+    data = addMedicationTodos(data, '약', ['저녁'], 2);
+    data = addTodo(data, '매일', 3, undefined, undefined, true);
+    data = addTodo(data, '일반 2', 4);
+    data = addTodo(data, '시간 지정', 5, undefined, 5000);
+    data = parseAppData(JSON.parse(JSON.stringify(data)))!;
+    expect(sortTodos(data.todos, 4000).map(todo => todo.text)).toEqual(['시간 지정', '매일', '약 (저녁)', '일반 2', '일반']);
+    data = completeTodo(data, data.todos.find(todo => todo.medicationTime)!.id, 6000);
+    data = restoreTodo(data, data.history[0].id);
+    expect(sortTodos(data.todos, 4000)[2].medicationTime).toBe('저녁');
+  });
+  it('creates independently recurring tasks for the selected times', () => {
+    const now = new Date(2026, 10, 3, 9).getTime();
+    let data = addMedicationTodos(emptyData(), '약 복용', ['저녁', '아침'], now, 'blue', undefined, true);
+    expect(data.todos.map(todo => todo.text)).toEqual(['약 복용 (아침)', '약 복용 (저녁)']);
+    data = completeTodo(data, data.todos[0].id, now);
+    expect(data.todos.find(todo => todo.text === '약 복용 (아침)')?.availableAt).toBe(new Date(2026, 10, 4).getTime());
+    expect(data.todos.find(todo => todo.text === '약 복용 (저녁)')?.availableAt).toBeUndefined();
+    expect(parseAppData(data)?.todos).toEqual(data.todos);
+  });
+});
 
 function withTodos(...texts: string[]) {
   return texts.reduceRight((data, text, i) => addTodo(data, text, 1000 + i), emptyData());

@@ -12,8 +12,8 @@ import { startOfToday } from './lib/format';
 import { isNativeAndroid } from './lib/platform';
 import { loadData, saveData } from './lib/storage';
 import {
-  addTodo, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, moveTodo, restoreTodo, sortTodos,
-  type AppData, type TodoColor,
+  addTodo, addMedicationTodos, clearHistory, completeTodo, deleteHistoryItem, deleteTodo, editTodo, insertTodo, moveTodo, restoreTodo, sortTodos,
+  type AppData, type MedicationTime, type TodoColor,
 } from './lib/todos';
 
 type View = 'home' | 'settings' | 'history';
@@ -99,8 +99,8 @@ export default function App() {
     return data.history.filter(item => (item.completedAt ?? 0) >= start).length;
   }, [data.history, today]);
 
-  const add = useCallback((text: string, color: TodoColor | undefined, dueAt: number | undefined, repeatDaily: boolean) => {
-    setData(current => addTodo(current, text, Date.now(), color, dueAt, repeatDaily));
+  const add = useCallback((text: string, color: TodoColor | undefined, dueAt: number | undefined, repeatDaily: boolean, medicationTimes: MedicationTime[]) => {
+    setData(current => medicationTimes.length ? addMedicationTodos(current, text, medicationTimes, Date.now(), color, dueAt, repeatDaily) : addTodo(current, text, Date.now(), color, dueAt, repeatDaily));
     setToday(new Date());
   }, []);
 

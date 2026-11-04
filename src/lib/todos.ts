@@ -1,5 +1,7 @@
 export const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const;
 export type TodoColor = (typeof COLORS)[number];
+export const MEDICATION_TIMES = ['아침', '점심', '저녁'] as const;
+export type MedicationTime = (typeof MEDICATION_TIMES)[number];
 
 export interface Todo {
   id: string;
@@ -8,6 +10,7 @@ export interface Todo {
   /** Optional scheduled date and time, stored as an absolute timestamp. */
   dueAt?: number;
   repeatDaily?: boolean;
+  medicationTime?: MedicationTime;
   /** Next occurrence becomes visible at the start of this local day. */
   availableAt?: number;
   nextTodoId?: string;
@@ -37,6 +40,18 @@ export function addTodo(data: AppData, text: string, now = Date.now(), color?: T
   return { ...data, todos: [todo, ...data.todos] };
 }
 
+/** Each selected dose is completed and repeated independently. */
+export function addMedicationTodos(data: AppData, text: string, times: MedicationTime[], now = Date.now(), color?: TodoColor, dueAt?: number, repeatDaily = false): AppData {
+  const clean = text.trim();
+  if (!clean) return data;
+  const selected = MEDICATION_TIMES.filter(time => times.includes(time));
+  return selected.reduceRight((current, time) => {
+    const suffix = ` (${time})`;
+    const added = addTodo(current, clean.slice(0, 500 - suffix.length) + suffix, now, color, dueAt, repeatDaily);
+    return { ...added, todos: [{ ...added.todos[0], medicationTime: time }, ...added.todos.slice(1)] };
+  }, data);
+}
+
 export function editTodo(data: AppData, id: string, patch: { text?: string; color?: TodoColor | null; dueAt?: number | null; repeatDaily?: boolean }): AppData {
   return {
     ...data,
@@ -61,7 +76,7 @@ function validDueAt(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Number.isFinite(new Date(value).getTime());
 }
 
-/** Scheduled tasks nearest to now first; otherwise preserve the saved/manual order. */
+/** Scheduled tasks first, then recurring and medication tasks; preserve manual order within groups. */
 export function sortTodos(todos: Todo[], now = Date.now()): Todo[] {
   return [...todos].sort((a, b) => {
     const aScheduled = validDueAt(a.dueAt);
@@ -69,6 +84,9 @@ export function sortTodos(todos: Todo[], now = Date.now()): Todo[] {
     if (aScheduled && bScheduled) return Math.abs(a.dueAt! - now) - Math.abs(b.dueAt! - now);
     if (aScheduled) return -1;
     if (bScheduled) return 1;
+    const aPriority = Boolean(a.repeatDaily || a.medicationTime);
+    const bPriority = Boolean(b.repeatDaily || b.medicationTime);
+    if (aPriority !== bPriority) return aPriority ? -1 : 1;
     return 0;
   });
 }
@@ -152,6 +170,7 @@ function parseTodo(value: unknown): Todo | null {
   if (COLORS.includes(input.color as TodoColor)) todo.color = input.color as TodoColor;
   if (validDueAt(input.dueAt)) todo.dueAt = input.dueAt;
   if (input.repeatDaily === true) todo.repeatDaily = true;
+  if (MEDICATION_TIMES.includes(input.medicationTime as MedicationTime)) todo.medicationTime = input.medicationTime as MedicationTime;
   if (validDueAt(input.availableAt)) todo.availableAt = input.availableAt;
   if (typeof input.nextTodoId === 'string' && input.nextTodoId) todo.nextTodoId = input.nextTodoId;
   const completedAt = Number(input.completedAt);
