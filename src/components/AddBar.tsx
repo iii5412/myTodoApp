@@ -1,4 +1,4 @@
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { MEDICATION_TIMES, type MedicationTime, type TodoColor } from '../lib/todos';
 import { formatSchedule, fromDateTimeInput, toDateTimeInput } from '../lib/format';
@@ -19,6 +19,7 @@ export function AddBar({ onAdd, onClose }: Props) {
   const [manualSchedule, setManualSchedule] = useState(false);
   const [repeatDaily, setRepeatDaily] = useState(false);
   const [medicationTimes, setMedicationTimes] = useState<MedicationTime[]>([]);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const canSubmit = text.trim().length > 0;
 
@@ -34,6 +35,7 @@ export function AddBar({ onAdd, onClose }: Props) {
     setManualSchedule(false);
     setRepeatDaily(false);
     setMedicationTimes([]);
+    setOptionsOpen(false);
     // Keep the keyboard up for the next one.
     inputRef.current?.focus();
   }
@@ -51,6 +53,16 @@ export function AddBar({ onAdd, onClose }: Props) {
         className="sheet-in max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-surface px-4 pt-3"
         style={{ paddingBottom: 'calc(var(--safe-bottom) + 16px)' }}
       >
+        <button type="button" aria-expanded={optionsOpen} aria-controls="add-options" onClick={() => setOptionsOpen(open => !open)} className="flex min-h-11 w-full items-center gap-2 text-left text-[15px] font-semibold text-muted">
+          <SlidersHorizontal size={18} /> 일정 · 반복 · 약 복용 설정
+          <ChevronDown size={18} className={`ml-auto ${optionsOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {!optionsOpen && (schedule || repeatDaily || medicationTimes.length > 0) && (
+          <p role="status" className="m-0 mb-2 text-[13px] text-muted">
+            {[schedule ? `${!manualSchedule ? '자동 설정 · ' : ''}${formatSchedule(fromDateTimeInput(schedule)!)}` : '', repeatDaily ? '매일 반복' : '', medicationTimes.length ? `약 복용: ${MEDICATION_TIMES.filter(time => medicationTimes.includes(time)).join(' · ')}` : ''].filter(Boolean).join(' / ')}
+          </p>
+        )}
+        {optionsOpen && <div id="add-options">
         <ScheduleField id="add-schedule" value={schedule} onChange={value => {
           setManualSchedule(true);
           setSchedule(value);
@@ -77,6 +89,7 @@ export function AddBar({ onAdd, onClose }: Props) {
           <p className="m-0 mt-1 text-[13px] text-muted">아침 7시 · 점심 12시 · 저녁 6시부터 표시</p>
           {repeatDaily && medicationTimes.length > 0 && <p className="m-0 text-[13px] text-muted">매일 새로 표시하며, 전날 못 한 복용은 쌓이지 않아요</p>}
         </fieldset>
+        </div>}
         <div
           className="mb-3 overflow-x-auto"
           // Keep the input focused (and the keyboard open) when a color is tapped.
